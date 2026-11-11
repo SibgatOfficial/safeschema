@@ -80,8 +80,10 @@ function App() {
         setResult(res.data.result);
         refreshAll();
       }
-    } catch (err) {
-      setError("Failed to connect to backend.");
+    }      catch (err: any) {
+      // This will print the EXACT backend error on your screen
+      const errorMsg = err.response?.data?.details || err.message;
+      setError(`Backend Error: ${errorMsg}`);
     }
     setLoading(false);
   };
