@@ -5,19 +5,16 @@ import cors from "cors";
 import * as dotenv from "dotenv";
 import { Client } from "pg";
 import { Command } from "@langchain/langgraph";
-
-console.log("2. Base libraries imported successfully.");
-
 import { workflow } from "./agent-graph"; 
-console.log("3. Agent graph imported successfully.");
+
+console.log("2. Libraries imported.");
 
 dotenv.config();
-console.log("4. Environment variables loaded.");
+console.log("3. Environment variables loaded.");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-console.log("5. Express configured.");
 
 const threadConfig = { configurable: { thread_id: "user-1" } };
 
@@ -34,7 +31,7 @@ const getClient = () => {
   });
 };
 
-// (Routes are the same as before, keeping it short)
+// 1. Get Schema Endpoint
 app.get("/schema", async (req, res) => {
   const client = getClient();
   try {
@@ -53,6 +50,25 @@ app.get("/schema", async (req, res) => {
   }
 });
 
+// 2. Get Table Data Endpoint (THIS WAS MISSING!)
+app.get("/data/:tableName", async (req, res) => {
+  const { tableName } = req.params;
+  if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
+    return res.status(400).json({ error: "Invalid table name" });
+  }
+  const client = getClient();
+  try {
+    await client.connect();
+    const result = await client.query(`SELECT * FROM ${tableName} LIMIT 10;`);
+    res.json({ data: result.rows, columns: result.fields.map(f => f.name) });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  } finally {
+    await client.end();
+  }
+});
+
+// 3. Start Workflow Endpoint
 app.post("/start", async (req, res) => {
   try {
     const stream = await workflow.streamEvents({ prompt: req.body.prompt }, { ...threadConfig, version: "v3" });
@@ -69,6 +85,7 @@ app.post("/start", async (req, res) => {
   }
 });
 
+// 4. Resume Workflow Endpoint
 app.post("/resume", async (req, res) => {
   try {
     const stream = await workflow.streamEvents(
@@ -84,9 +101,4 @@ app.post("/resume", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => console.log(`[Server] Running on port ${PORT}`));
-
-// Catch port errors
-server.on('error', (e: any) => {
-  console.error("Server Error:", e);
-});
+app.listen(PORT, () => console.log(`[Server] Running on port ${PORT}`));
