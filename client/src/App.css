@@ -266,3 +266,16 @@ body {
   border-color: var(--danger);
   color: #f85149;
 }
+/* Realistic Code Block styling */
+.code-block {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+  color: #e6edf3;
+  min-height: 80px;
+  white-space: pre-wrap;
+}

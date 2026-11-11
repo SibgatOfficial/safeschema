@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
-// Define interfaces so TypeScript stops complaining
 interface SchemaColumn {
   table_name: string;
   column_name: string;
@@ -56,7 +55,7 @@ function App() {
 
   useEffect(() => {
     refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startWorkflow = async () => {
@@ -82,7 +81,7 @@ function App() {
         refreshAll();
       }
     } catch (err) {
-      setError("Failed to connect to backend."+ err);
+      setError("Failed to connect to backend.");
     }
     setLoading(false);
   };
@@ -117,7 +116,9 @@ function App() {
     <div className="app-container">
       {/* SIDEBAR */}
       <div className="sidebar">
-        <div className="sidebar-header">Database Explorer</div>
+        <div className="sidebar-header">
+          Database Explorer
+        </div>
         
         <div className="panel">
           <div className="panel-title">Schema</div>
@@ -206,7 +207,11 @@ function App() {
               </h2>
               
               <div className="panel-title" style={{ marginTop: "24px" }}>Proposed SQL</div>
-              <div className="code-block">{sql}</div>
+              
+              {/* PURE CSS CODE BLOCK */}
+              <pre className="code-block">
+                <code>{sql}</code>
+              </pre>
 
               {shadowResult && shadowResult.status === "PASSED" && (
                 <div style={{ marginTop: "24px" }}>
@@ -255,9 +260,9 @@ function App() {
 
           {/* RESULT SCREEN */}
           {result && (
-            <div className={`card ${result.includes("❌") ? "risk-high" : ""}`} style={{ borderColor: result.includes("❌") ? "var(--danger)" : "var(--success)" }}>
-              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", color: result.includes("❌") ? "var(--danger)" : "var(--success)" }}>
-                {result.includes("❌") ? "Execution Blocked" : "Execution Successful"}
+            <div className={`card ${result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "risk-high" : ""}`} style={{ borderColor: result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "var(--danger)" : "var(--success)" }}>
+              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", color: result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "var(--danger)" : "var(--success)" }}>
+                {result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "Execution Blocked" : "Execution Successful"}
               </h2>
               <p style={{ fontSize: "14px", color: "var(--text)" }}>{result}</p>
               
