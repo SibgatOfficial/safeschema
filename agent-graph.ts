@@ -3,7 +3,7 @@ import { Client } from "pg";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-// 🛠️ 1. Read the live schema AND look for default values (like auto-increment)
+// 🛠️ 1. Read the live schema
 async function getLiveDatabaseSchema() {
   const client = new Client({
     user: process.env.DB_USER,
@@ -34,7 +34,6 @@ async function getLiveDatabaseSchema() {
       schemaString += `Table '${table}': ${schemaMap[table].join(", ")}\n`;
     }
     return schemaString;
-
   } catch (error) {
     console.error("Failed to read schema", error);
     return "Could not read schema.";
@@ -54,7 +53,6 @@ async function getMigrationHistory() {
   });
   try {
     await client.connect();
-    // Fetch the most recent successful migration
     const res = await client.query(`SELECT user_prompt, generated_sql FROM migration_history ORDER BY id DESC LIMIT 1;`);
     if (res.rows.length === 0) return "No past migrations found.";
     return `Past successful migration: User asked "${res.rows[0].user_prompt}" and SQL was "${res.rows[0].generated_sql}"`;
@@ -69,10 +67,7 @@ async function getMigrationHistory() {
 const generateSqlTask = task("generateSql", async (input: any) => {
   console.log(`🧠 Agent is thinking about: "${input.prompt}"`);
   
-  console.log("👀 Reading live database schema...");
   const liveSchema = await getLiveDatabaseSchema();
-  
-  console.log("📚 Retrieving RAG Memory (Past Migrations)...");
   const historyContext = await getMigrationHistory();
 
   const prompt = `
@@ -111,13 +106,12 @@ const generateSqlTask = task("generateSql", async (input: any) => {
     let generatedSql = data.choices[0].message.content;
     generatedSql = generatedSql.replace(/```sql/g, "").replace(/```/g, "").trim();
     
-    // 🚨 THE RISK ENGINE 🚨
     const sqlUpper = generatedSql.toUpperCase();
-    const dangerousKeywords = ["DELETE", "DROP", "TRUNCATE", "ALTER"];
+    const dangerousKeywords = ["DELETE", "DROP", "TRUNCATE"];
     const isRisky = dangerousKeywords.some(keyword => sqlUpper.includes(keyword));
 
     return {
-      userPrompt: input.prompt, // Save this for RAG memory later
+      userPrompt: input.prompt, 
       sql: generatedSql,
       risk: isRisky ? "RISKY" : "SAFE", 
     };
@@ -127,7 +121,7 @@ const generateSqlTask = task("generateSql", async (input: any) => {
   }
 });
 
-// 4. The Shadow DB Test (Catches Syntax Errors & Duplicate Keys)
+// 4. The Shadow DB Test (Catches Errors AND returns data)
 const testShadowDbTask = task("testShadowDb", async (migration: any) => {
   console.log("🛡️ Testing SQL on Shadow DB...");
   
@@ -142,32 +136,42 @@ const testShadowDbTask = task("testShadowDb", async (migration: any) => {
   try {
     await client.connect();
     await client.query("BEGIN");
-    await client.query(migration.sql);
+    
+    // Execute the query inside the shadow bubble
+    const result = await client.query(migration.sql);
+    
     await client.query("ROLLBACK"); // Undo the test!
     console.log("✅ SQL passed Shadow DB test!");
-    return "PASSED";
+    
+    // Return the actual data to the UI!
+    return { 
+      status: "PASSED", 
+      rows: result.rows || [], 
+      rowCount: result.rowCount || 0,
+      fields: result.fields?.map((f: any) => f.name) || []
+    };
   } catch (error: any) {
     await client.query("ROLLBACK");
     console.log("❌ SQL failed Shadow DB test:", error.message);
-    return `FAILED: ${error.message}`;
+    return { status: `FAILED: ${error.message}`, rows: [], rowCount: 0, fields: [] };
   } finally {
     await client.end();
   }
 });
 
-// 5. The Human Approval Gate (Pauses the Graph)
+// 5. The Human Approval Gate
 const humanApprovalTask = task("humanApproval", async (state: any) => {
   const decision = interrupt({
     type: "approval_required",
     message: "Approve this database migration?",
     proposed_sql: state.migration.sql,
     risk: state.migration.risk,
+    shadow_result: state.testResult // Pass the Shadow DB data to React
   });
-  
   return decision; 
 });
 
-// 6. The Real Execution (Commits to the actual DB & Saves RAG Memory)
+// 6. The Real Execution
 const executeMigrationTask = task("executeMigration", async (state: any) => {
   if (!state.decision.approved) {
     return "🚫 Migration rejected by human. Nothing was executed.";
@@ -187,11 +191,9 @@ const executeMigrationTask = task("executeMigration", async (state: any) => {
     await client.connect();
     await client.query("BEGIN");
     await client.query(state.migration.sql);
-    await client.query("COMMIT"); // KEEP the changes!
+    await client.query("COMMIT"); 
     console.log("✅ Successfully committed to DB!");
     
-    // 🧠 SAVE TO RAG MEMORY
-    console.log("💾 Saving successful migration to Vector memory...");
     await client.query(
       `INSERT INTO migration_history (user_prompt, generated_sql, embedding) VALUES ($1, $2, $3)`,
       [state.migration.userPrompt, state.migration.sql, '[0,0,0]'] 
@@ -207,24 +209,18 @@ const executeMigrationTask = task("executeMigration", async (state: any) => {
   }
 });
 
-// 7. The Workflow Graph (Putting it all together)
+// 7. The Workflow Graph
 export const workflow = entrypoint(
   { checkpointer: new MemorySaver(), name: "safeSchemaAgent" },
   async (input: any) => {
-    // Step 1: AI writes the SQL
     const migration = await generateSqlTask(input);
-    
-    // Step 2: Shadow DB tests it
     const testResult = await testShadowDbTask(migration);
     
-    if (testResult.startsWith("FAILED")) {
-      return `❌ Blocked by Shadow DB: ${testResult}`;
+    if (testResult.status.startsWith("FAILED")) {
+      return `❌ Blocked by Shadow DB: ${testResult.status}`;
     }
 
-    // Step 3: Human approves it
-    const decision = await humanApprovalTask({ migration });
-    
-    // Step 4: Execute on real DB & Save to Memory
+    const decision = await humanApprovalTask({ migration, testResult });
     const result = await executeMigrationTask({ migration, decision });
     
     return result;
