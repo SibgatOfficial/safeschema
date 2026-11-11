@@ -1,28 +1,41 @@
-import { useState, useEffect } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState, useEffect } from "react";
 import axios from "axios";
+import "./App.css";
+
+// Define interfaces so TypeScript stops complaining
+interface SchemaColumn {
+  table_name: string;
+  column_name: string;
+  data_type: string;
+}
+
+interface ShadowResult {
+  status: string;
+  rows: any[];
+  rowCount: number;
+  fields: string[];
+}
 
 function App() {
-  const [prompt, setPrompt] = useState("");
-  const [sql, setSql] = useState("");
-  const [risk, setRisk] = useState("");
-  const [result, setResult] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [prompt, setPrompt] = useState<string>("");
+  const [sql, setSql] = useState<string>("");
+  const [risk, setRisk] = useState<string>("");
+  const [result, setResult] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
   
-  // Schema & Data states
-  const [schema, setSchema] = useState<any[]>([]);
+  const [schema, setSchema] = useState<SchemaColumn[]>([]);
   const [tableData, setTableData] = useState<any[]>([]);
   const [tableColumns, setTableColumns] = useState<string[]>([]);
-  
-  // Shadow DB state
-  const [shadowResult, setShadowResult] = useState<any>(null);
+  const [shadowResult, setShadowResult] = useState<ShadowResult | null>(null);
 
   const fetchSchema = async () => {
     try {
       const res = await axios.get("http://localhost:3000/schema");
       setSchema(res.data.schema);
     } catch (err) {
-      console.error("Failed to load schema", err);
+      console.error(err);
     }
   };
 
@@ -32,7 +45,7 @@ function App() {
       setTableData(res.data.data);
       setTableColumns(res.data.columns);
     } catch (err) {
-      console.error("Failed to load data", err);
+      console.error(err);
     }
   };
 
@@ -43,11 +56,12 @@ function App() {
 
   useEffect(() => {
     refreshAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   }, []);
 
   const startWorkflow = async () => {
     if (!prompt.trim()) {
-      setError("Please enter a migration prompt first.");
+      setError("Please enter a migration prompt.");
       return;
     }
     setLoading(true);
@@ -62,13 +76,13 @@ function App() {
       if (res.data.interrupt) {
         setSql(res.data.interrupt.proposed_sql);
         setRisk(res.data.interrupt.risk);
-        setShadowResult(res.data.interrupt.shadow_result); // Save Shadow DB data
+        setShadowResult(res.data.interrupt.shadow_result);
       } else if (res.data.result) {
         setResult(res.data.result);
         refreshAll();
       }
     } catch (err) {
-      setError("Failed to connect to backend.");
+      setError("Failed to connect to backend."+ err);
     }
     setLoading(false);
   };
@@ -100,187 +114,161 @@ function App() {
   };
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "system-ui, sans-serif", maxWidth: "1200px", margin: "0 auto" }}>
-      <h1 style={{ textAlign: "center", marginBottom: "2rem" }}>🛡️ SafeSchema Dashboard</h1>
-
-      {error && (
-        <div style={{ background: "#ffcccc", color: "#cc0000", padding: "1rem", borderRadius: "5px", marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start" }}>
+    <div className="app-container">
+      {/* SIDEBAR */}
+      <div className="sidebar">
+        <div className="sidebar-header">Database Explorer</div>
         
-        {/* LEFT PANEL: SCHEMA & DATA */}
-        <div style={{ flex: "1", display: "flex", flexDirection: "column", gap: "1rem" }}>
-          
-          <div style={{ background: "#f8f9fa", padding: "1.5rem", borderRadius: "8px", border: "1px solid #dee2e6" }}>
-            <h2 style={{ marginTop: 0, fontSize: "1.2rem", borderBottom: "2px solid #ccc", paddingBottom: "0.5rem" }}>
-              🗄️ Live Schema
-            </h2>
-            {schema.length === 0 ? (
-              <p>No tables found.</p>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-                <thead>
-                  <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-                    <th style={{ padding: "8px 0" }}>Table</th>
-                    <th style={{ padding: "8px 0" }}>Column</th>
-                    <th style={{ padding: "8px 0" }}>Type</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {schema.map((col) => (
-                    <tr key={`${col.table_name}-${col.column_name}`} style={{ borderBottom: "1px solid #eee" }}>
-                      <td style={{ padding: "8px 0", fontWeight: "bold" }}>{col.table_name}</td>
-                      <td style={{ padding: "8px 0" }}>{col.column_name}</td>
-                      <td style={{ padding: "8px 0", color: "#666" }}>{col.data_type}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div style={{ background: "#f8f9fa", padding: "1.5rem", borderRadius: "8px", border: "1px solid #dee2e6" }}>
-            <h2 style={{ marginTop: 0, fontSize: "1.2rem", borderBottom: "2px solid #ccc", paddingBottom: "0.5rem" }}>
-              📊 Users Table Data (Top 10)
-            </h2>
-            {tableData.length === 0 ? (
-              <p>No data inside users table.</p>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #ccc", background: "#eee" }}>
-                      {tableColumns.map(col => <th key={col} style={{ padding: "8px" }}>{col}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableData.map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                        {tableColumns.map(col => <td key={col} style={{ padding: "8px" }}>{row[col]?.toString() || "NULL"}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="panel">
+          <div className="panel-title">Schema</div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Table</th>
+                <th>Column</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schema.map((col, idx) => (
+                <tr key={`${col.table_name}-${col.column_name}-${idx}`}>
+                  <td style={{ fontWeight: 600 }}>{col.table_name}</td>
+                  <td>{col.column_name}</td>
+                  <td style={{ color: "var(--text-muted)" }}>{col.data_type}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {/* RIGHT PANEL: AI WORKFLOW */}
-        <div style={{ flex: "2" }}>
-          {/* PHASE 1: Input Screen */}
+        <div className="panel">
+          <div className="panel-title">Users Table Preview</div>
+          {tableData.length === 0 ? (
+            <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>No data</p>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {tableColumns.map(col => <th key={col}>{col}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {tableData.map((row, idx) => (
+                  <tr key={idx}>
+                    {tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="main-content">
+        <div className="workspace">
+          
+          <div className="header">
+            <h1>SafeSchema Agent</h1>
+            <p>AI-powered database migrations with human-in-the-loop validation.</p>
+          </div>
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          {/* INPUT SCREEN */}
           {!sql && !result && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <label style={{ fontWeight: "bold" }}>What do you want to change in the database?</label>
+            <div className="input-group">
               <input
                 type="text"
+                className="input-field"
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="e.g., Add a column called age to the users table"
-                style={{ padding: "12px", fontSize: "16px", borderRadius: "5px", border: "1px solid #ccc" }}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
+                placeholder="e.g., Split full_name into first_name and last_name"
                 disabled={loading}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && startWorkflow()}
               />
-              <button
-                onClick={startWorkflow}
-                disabled={loading}
-                style={{ padding: "12px", fontSize: "16px", background: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
-              >
-                {loading ? "⏳ Agent is working..." : "Start Migration"}
+              <button className="btn btn-primary" onClick={startWorkflow} disabled={loading}>
+                {loading ? "Thinking..." : "Run Agent"}
               </button>
             </div>
           )}
 
-          {/* PHASE 2: Approval Screen */}
+          {loading && !sql && <div className="spinner" style={{ marginTop: "40px" }}></div>}
+
+          {/* APPROVAL SCREEN */}
           {sql && (
-            <div style={{ 
-              border: risk === "RISKY" ? "3px solid #dc3545" : "2px solid #ffc107", 
-              padding: "1.5rem", 
-              borderRadius: "8px", 
-              background: risk === "RISKY" ? "#fff5f5" : "#fffdf5"
-            }}>
-              <h2 style={{ color: risk === "RISKY" ? "#dc3545" : "black", marginTop: 0 }}>
-                {risk === "RISKY" ? "🚨 DANGEROUS MIGRATION" : "⏸️ Approval Required"}
+            <div className={`card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
+              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", display: "flex", alignItems: "center" }}>
+                Human Approval Required
+                <span className={`badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>
+                  {risk} RISK
+                </span>
               </h2>
               
-              <p><strong>Risk:</strong> <span style={{ color: risk === "RISKY" ? "red" : "green", fontWeight: "bold" }}>{risk}</span></p>
-              
-              <p><strong>Proposed SQL:</strong></p>
-              <pre style={{ background: "#1e1e1e", color: "#d4d4d4", padding: "1rem", borderRadius: "5px", overflowX: "auto" }}>
-                {sql}
-              </pre>
+              <div className="panel-title" style={{ marginTop: "24px" }}>Proposed SQL</div>
+              <div className="code-block">{sql}</div>
 
-              {/* SHADOW DB RESULT TABLE */}
               {shadowResult && shadowResult.status === "PASSED" && (
-                <div style={{ marginTop: "1rem", background: "#eef", padding: "1rem", borderRadius: "5px", border: "1px solid #ccd" }}>
-                  <h4 style={{ margin: "0 0 10px 0" }}>🛡️ Shadow DB Test Result: PASSED</h4>
-                  <p style={{ margin: "0 0 10px 0", fontSize: "0.9rem" }}>Affected Rows: {shadowResult.rowCount}</p>
+                <div style={{ marginTop: "24px" }}>
+                  <div className="panel-title" style={{ color: "var(--success)" }}>
+                    Shadow DB Preview (Passed)
+                  </div>
+                  <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
+                    Affected Rows: {shadowResult.rowCount}
+                  </p>
                   
                   {shadowResult.rows && shadowResult.rows.length > 0 ? (
-                    <div style={{ overflowX: "auto" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", background: "white" }}>
+                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                      <table className="data-table">
                         <thead>
-                          <tr style={{ background: "#dde" }}>
-                            {shadowResult.fields.map((f: string) => <th key={f} style={{ padding: "5px", border: "1px solid #ccc", textAlign: "left" }}>{f}</th>)}
+                          <tr>
+                            {shadowResult.fields.map((f: string) => <th key={f}>{f}</th>)}
                           </tr>
                         </thead>
                         <tbody>
                           {shadowResult.rows.map((row: any, i: number) => (
                             <tr key={i}>
-                              {shadowResult.fields.map((f: string) => <td key={f} style={{ padding: "5px", border: "1px solid #ccc" }}>{row[f]?.toString()}</td>)}
+                              {shadowResult.fields.map((f: string) => <td key={f}>{row[f]?.toString()}</td>)}
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                   ) : (
-                    <p style={{ fontSize: "0.9rem", color: "#555", fontStyle: "italic" }}>(No rows returned by this query, e.g., ALTER/INSERT)</p>
+                    <p style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                      No rows returned (e.g., ALTER/INSERT).
+                    </p>
                   )}
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
-                <button
-                  onClick={() => resumeWorkflow(true)}
-                  disabled={loading}
-                  style={{ padding: "10px 20px", background: risk === "RISKY" ? "#dc3545" : "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
-                >
-                  {risk === "RISKY" ? "⚠️ Execute Anyway" : "✅ Approve & Execute"}
+              <div className="action-bar">
+                <button className="btn btn-danger" onClick={() => resumeWorkflow(false)} disabled={loading}>
+                  Reject
                 </button>
-                <button
-                  onClick={() => resumeWorkflow(false)}
-                  disabled={loading}
-                  style={{ padding: "10px 20px", background: "#6c757d", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
-                >
-                  ❌ Reject
+                <button className={`btn ${risk === "RISKY" ? "btn-danger" : "btn-success"}`} onClick={() => resumeWorkflow(true)} disabled={loading}>
+                  {risk === "RISKY" ? "Force Execute" : "Approve & Execute"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* PHASE 3: Result Screen */}
+          {/* RESULT SCREEN */}
           {result && (
-            <div style={{ 
-              padding: "1.5rem", 
-              border: result.includes("❌") ? "2px solid #dc3545" : "2px solid #28a745", 
-              borderRadius: "8px", 
-              background: result.includes("❌") ? "#fff5f5" : "#f4fff4" 
-            }}>
-              <h2 style={{ color: result.includes("❌") ? "#dc3545" : "#28a745", marginTop: 0 }}>
-                {result.includes("❌") ? "🚨 Blocked / Failed" : "✅ Workflow Complete"}
+            <div className={`card ${result.includes("❌") ? "risk-high" : ""}`} style={{ borderColor: result.includes("❌") ? "var(--danger)" : "var(--success)" }}>
+              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", color: result.includes("❌") ? "var(--danger)" : "var(--success)" }}>
+                {result.includes("❌") ? "Execution Blocked" : "Execution Successful"}
               </h2>
-              <p style={{ fontSize: "1.1rem", fontWeight: "bold" }}>{result}</p>
+              <p style={{ fontSize: "14px", color: "var(--text)" }}>{result}</p>
               
-              <button
-                onClick={resetApp}
-                style={{ padding: "10px 20px", background: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", marginTop: "1rem" }}
-              >
-                Start a New Migration
-              </button>
+              <div className="action-bar" style={{ justifyContent: "flex-start", marginTop: "16px" }}>
+                <button className="btn btn-primary" onClick={resetApp}>
+                  New Migration
+                </button>
+              </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
