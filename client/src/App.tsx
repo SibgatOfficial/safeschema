@@ -31,7 +31,7 @@ function App() {
 
   const fetchSchema = async () => {
     try {
-      const res = await axios.get("http://localhost:3000/schema");
+      const res = await axios.get("https://safeschema.onrender.com/schema");
       setSchema(res.data.schema);
     } catch (err) {
       console.error(err);
@@ -40,7 +40,7 @@ function App() {
 
   const fetchTableData = async () => {
     try {
-      const res = await axios.get("http://localhost:3000/data/users");
+      const res = await axios.get("https://safeschema.onrender.com/data/users");
       setTableData(res.data.data);
       setTableColumns(res.data.columns);
     } catch (err) {
@@ -70,7 +70,7 @@ function App() {
     setShadowResult(null);
     
     try {
-      const res = await axios.post("http://localhost:3000/start", { prompt });
+      const res = await axios.post("https://safeschema.onrender.com/start", { prompt });
       
       if (res.data.interrupt) {
         setSql(res.data.interrupt.proposed_sql);
@@ -90,7 +90,7 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post("http://localhost:3000/resume", { approved });
+      const res = await axios.post("https://safeschema.onrender.com/resume", { approved });
       setResult(res.data.result);
       setSql("");
       setRisk("");
