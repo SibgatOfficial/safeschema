@@ -3,7 +3,7 @@ import { Client } from "pg";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-// 🛠️ 1. Read the live schema
+// Read the live schema and default values (like auto-increment)
 async function getLiveDatabaseSchema() {
   const client = new Client({
     user: process.env.DB_USER,
@@ -35,14 +35,14 @@ async function getLiveDatabaseSchema() {
     }
     return schemaString;
   } catch (error) {
-    console.error("Failed to read schema", error);
+    console.error("[DB Error] Failed to read schema:", error);
     return "Could not read schema.";
   } finally {
     await client.end();
   }
 }
 
-// 🧠 2. RAG Memory: Fetch past successful migrations
+// RAG Memory: Fetch past successful migrations
 async function getMigrationHistory() {
   const client = new Client({
     user: process.env.DB_USER,
@@ -63,9 +63,9 @@ async function getMigrationHistory() {
   }
 }
 
-// 3. The AI Generation Task
+// 1. AI Generation Task
 const generateSqlTask = task("generateSql", async (input: any) => {
-  console.log(`🧠 Agent is thinking about: "${input.prompt}"`);
+  console.log(`[Agent] Processing prompt: "${input.prompt}"`);
   
   const liveSchema = await getLiveDatabaseSchema();
   const historyContext = await getMigrationHistory();
@@ -106,9 +106,14 @@ const generateSqlTask = task("generateSql", async (input: any) => {
     let generatedSql = data.choices[0].message.content;
     generatedSql = generatedSql.replace(/```sql/g, "").replace(/```/g, "").trim();
     
+    // Risk Engine Evaluation
     const sqlUpper = generatedSql.toUpperCase();
     const dangerousKeywords = ["DELETE", "DROP", "TRUNCATE"];
     const isRisky = dangerousKeywords.some(keyword => sqlUpper.includes(keyword));
+
+    if (isRisky) {
+      console.warn("[Risk Engine] Destructive keyword detected in generated SQL.");
+    }
 
     return {
       userPrompt: input.prompt, 
@@ -116,14 +121,14 @@ const generateSqlTask = task("generateSql", async (input: any) => {
       risk: isRisky ? "RISKY" : "SAFE", 
     };
   } catch (error) {
-    console.error("AI Error:", error);
+    console.error("[AI Error]", error);
     throw error;
   }
 });
 
-// 4. The Shadow DB Test (Catches Errors AND returns data)
+// 2. Shadow DB Test (Catches errors, measures latency, returns data)
 const testShadowDbTask = task("testShadowDb", async (migration: any) => {
-  console.log("🛡️ Testing SQL on Shadow DB...");
+  console.log("[Shadow DB] Executing isolated transaction...");
   
   const client = new Client({
     user: process.env.DB_USER,
@@ -133,51 +138,56 @@ const testShadowDbTask = task("testShadowDb", async (migration: any) => {
     database: process.env.DB_NAME,
   });
 
+  const startTime = performance.now();
+
   try {
     await client.connect();
     await client.query("BEGIN");
     
-    // Execute the query inside the shadow bubble
     const result = await client.query(migration.sql);
     
-    await client.query("ROLLBACK"); // Undo the test!
-    console.log("✅ SQL passed Shadow DB test!");
+    await client.query("ROLLBACK");
     
-    // Return the actual data to the UI!
+    const durationMs = (performance.now() - startTime).toFixed(2);
+    console.log(`[Shadow DB] Validation passed in ${durationMs}ms. Transaction rolled back.`);
+    
     return { 
       status: "PASSED", 
       rows: result.rows || [], 
       rowCount: result.rowCount || 0,
-      fields: result.fields?.map((f: any) => f.name) || []
+      fields: result.fields?.map((f: any) => f.name) || [],
+      durationMs
     };
   } catch (error: any) {
     await client.query("ROLLBACK");
-    console.log("❌ SQL failed Shadow DB test:", error.message);
+    console.error(`[Shadow DB] Execution failed: ${error.message}`);
     return { status: `FAILED: ${error.message}`, rows: [], rowCount: 0, fields: [] };
   } finally {
     await client.end();
   }
 });
 
-// 5. The Human Approval Gate
+// 3. Human Approval Gate
 const humanApprovalTask = task("humanApproval", async (state: any) => {
+  console.log("[HITL] Graph interrupted. Awaiting human approval...");
   const decision = interrupt({
     type: "approval_required",
     message: "Approve this database migration?",
     proposed_sql: state.migration.sql,
     risk: state.migration.risk,
-    shadow_result: state.testResult // Pass the Shadow DB data to React
+    shadow_result: state.testResult 
   });
   return decision; 
 });
 
-// 6. The Real Execution
+// 4. Production Execution
 const executeMigrationTask = task("executeMigration", async (state: any) => {
   if (!state.decision.approved) {
-    return "🚫 Migration rejected by human. Nothing was executed.";
+    console.log("[Execution] Migration rejected by user.");
+    return "Migration rejected by human. Nothing was executed.";
   }
 
-  console.log("🔌 Connecting to Postgres to execute real SQL...");
+  console.log("[Execution] Committing to production database...");
   
   const client = new Client({
     user: process.env.DB_USER,
@@ -192,24 +202,26 @@ const executeMigrationTask = task("executeMigration", async (state: any) => {
     await client.query("BEGIN");
     await client.query(state.migration.sql);
     await client.query("COMMIT"); 
-    console.log("✅ Successfully committed to DB!");
+    
+    console.log("[Execution] Successfully committed to database.");
+    console.log("[RAG] Saving migration to vector memory...");
     
     await client.query(
       `INSERT INTO migration_history (user_prompt, generated_sql, embedding) VALUES ($1, $2, $3)`,
       [state.migration.userPrompt, state.migration.sql, '[0,0,0]'] 
     );
 
-    return "✅ Successfully executed on production DB! (Saved to RAG memory)";
+    return "Successfully executed on production DB. (Saved to RAG memory)";
   } catch (error: any) {
     await client.query("ROLLBACK");
-    console.error("❌ DB Execution Error:", error.message);
-    return `❌ Database Execution Error: ${error.message}`;
+    console.error("[Execution Error]", error.message);
+    return `Database Execution Error: ${error.message}`;
   } finally {
     await client.end();
   }
 });
 
-// 7. The Workflow Graph
+// 5. The Workflow Graph
 export const workflow = entrypoint(
   { checkpointer: new MemorySaver(), name: "safeSchemaAgent" },
   async (input: any) => {
@@ -217,7 +229,7 @@ export const workflow = entrypoint(
     const testResult = await testShadowDbTask(migration);
     
     if (testResult.status.startsWith("FAILED")) {
-      return `❌ Blocked by Shadow DB: ${testResult.status}`;
+      return `Blocked by Shadow DB: ${testResult.status}`;
     }
 
     const decision = await humanApprovalTask({ migration, testResult });
