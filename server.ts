@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import * as dotenv from "dotenv";
-import { Client } from "pg"; // 👈 Added pg Client import
+import { Client } from "pg";
 import { workflow } from "./agent-graph";
 import { Command } from "@langchain/langgraph";
 
@@ -36,7 +36,7 @@ app.get("/schema", async (req, res) => {
     `);
     res.json({ schema: result.rows });
   } catch (error: any) {
-    console.error("❌ Schema Fetch Error:", error.message);
+    console.error(" Schema Fetch Error:", error.message);
     res.status(500).json({ error: error.message });
   } finally {
     await client.end();
@@ -47,7 +47,7 @@ app.get("/schema", async (req, res) => {
 app.post("/start", async (req, res) => {
   try {
     const prompt = req.body.prompt;
-    console.log(`📥 Received prompt: "${prompt}"`);
+    console.log(`Received prompt: "${prompt}"`);
 
     const stream = await workflow.streamEvents({ prompt }, { ...threadConfig, version: "v3" });
     let interruptPayload = null;
@@ -72,7 +72,7 @@ app.post("/start", async (req, res) => {
     // Otherwise, send the pause payload
     res.json({ interrupt: interruptPayload });
   } catch (error: any) {
-    console.error("❌ Start Error:", error);
+    console.error(" Start Error:", error);
     res.status(500).json({ error: "Workflow failed to start", details: error.message });
   }
 });
@@ -81,7 +81,7 @@ app.post("/start", async (req, res) => {
 app.post("/resume", async (req, res) => {
   try {
     const approved = req.body.approved;
-    console.log(`📥 Received decision: ${approved ? "APPROVED" : "REJECTED"}`);
+    console.log(` Received decision: ${approved ? "APPROVED" : "REJECTED"}`);
 
     const stream = await workflow.streamEvents(
       new Command({ resume: { approved } }),
@@ -95,10 +95,10 @@ app.post("/resume", async (req, res) => {
 
     res.json({ result: finalResult });
   } catch (error: any) {
-    console.error("❌ Resume Error:", error);
+    console.error(" Resume Error:", error);
     res.status(500).json({ error: "Workflow failed to resume", details: error.message });
   }
 });
 
-// 6. Start the Server
-app.listen(3000, () => console.log("🚀 Server running on http://localhost:3000"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`[Server] Running on port ${PORT}`));
