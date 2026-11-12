@@ -24,7 +24,6 @@ function App() {
 
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResults, setEvalResults] = useState<any>(null);
-  const [evalTrace, setEvalTrace] = useState<string[]>([]);
 
   const fetchSchema = async () => {
     try {
@@ -78,29 +77,16 @@ function App() {
     setLoading(false);
   };
 
+  // 👈 FIXED: Standard API call for evaluation so it doesn't hang
   const runEvaluation = async () => {
-    setEvalLoading(true); setEvalResults(null);
-    setEvalTrace(["Starting Agentic Evaluation Suite..."]);
-
+    setEvalLoading(true);
+    setEvalResults(null);
     try {
-      const response = await fetch(`${API_URL}/eval`);
-      if (!response.body) throw new Error("No response body");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value).split("\n").filter(Boolean);
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.type === "log") setEvalTrace(prev => [...prev, parsed.message]);
-            else if (parsed.type === "result") setEvalResults({ score: parsed.score, results: parsed.results });
-          } catch (e) {}
-        }
-      }
-    } catch (err) { setEvalTrace(prev => [...prev, "❌ Failed to connect."]); }
+      const res = await axios.get(`${API_URL}/eval`);
+      setEvalResults(res.data);
+    } catch (err) {
+      console.error(err);
+    }
     setEvalLoading(false);
   };
 
@@ -200,7 +186,7 @@ function App() {
                   <h2>{result.message?.includes("Error") || result.message?.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
                   <p>{result.message}</p>
                   
-                  {/* 👈 THIS RENDERS THE DATA TABLE AFTER APPROVAL */}
+                  {/* 👈 THIS RENDERS THE RESULT DATA IF ANY EXISTS */}
                   {result.rows && result.rows.length > 0 && (
                     <div className="table-wrapper" style={{ marginTop: "20px", background: "var(--bg-panel)" }}>
                       <table>
@@ -226,15 +212,6 @@ function App() {
                   {evalLoading ? <span className="spinner"></span> : "Run Evaluation"}
                 </button>
               </div>
-
-              {evalTrace.length > 0 && (
-                <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
-                  <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
-                  <div style={{ padding: "20px" }}>
-                    {evalTrace.map((log, i) => (<div key={i} className="trace-step"><span className="trace-cursor">&gt;</span> {log}</div>))}
-                  </div>
-                </div>
-              )}
 
               {evalResults && (
                 <div className="eval-results">
