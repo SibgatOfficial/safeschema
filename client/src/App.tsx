@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Editor from "@monaco-editor/react";
 import "./App.css";
@@ -70,7 +70,6 @@ function App() {
   const resumeWorkflow = async (approved: boolean) => {
     setLoading(true); setTrace(prev => [...prev, `Decision: ${approved ? 'APPROVED' : 'REJECTED'}`]);
     try {
-      // 👈 Send the edited SQL back to the server
       const res = await axios.post(`${API_URL}/resume`, { approved, editedSql: sql });
       setResult(res.data.result); setSql(""); setRisk(""); setShadowResult(null);
       fetchSchema(); fetchTableData();
@@ -97,11 +96,33 @@ function App() {
     <div className="dashboard-layout">
       <aside className="sidebar">
         <div className="sidebar-header">Database Explorer</div>
+        
         <div className="sidebar-section">
           <h3 className="section-title">Live Schema</h3>
           <table><thead><tr><th>Table</th><th>Column</th></tr></thead>
             <tbody>{schema.map((c, i) => (<tr key={i}><td className="text-accent">{c.table_name}</td><td>{c.column_name}</td></tr>))}</tbody>
           </table>
+        </div>
+
+        {/* 👈 ADDED USERS PREVIEW BACK TO FIX VERCEL BUILD */}
+        <div className="sidebar-section">
+          <h3 className="section-title">Users Preview</h3>
+          {tableData.length === 0 ? (
+            <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr>
+              </thead>
+              <tbody>
+                {tableData.map((row, idx) => (
+                  <tr key={idx}>
+                    {tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </aside>
 
@@ -149,7 +170,6 @@ function App() {
                   <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
                 </div>
                 
-                {/* REAL MONACO EDITOR */}
                 <div className="editor-window">
                   <div className="editor-header">
                     <span className="dot dot-red"></span>
@@ -162,7 +182,7 @@ function App() {
                     defaultLanguage="sql"
                     value={sql}
                     theme="vs-dark"
-                    onChange={(value) => setSql(value || "")} // 👈 Update state when user edits
+                    onChange={(value) => setSql(value || "")} 
                     options={{
                       minimap: { enabled: false },
                       fontSize: 14,
