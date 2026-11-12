@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Database, ShieldAlert, Terminal, Play, CheckCircle, XCircle, ChevronRight, Activity } from "lucide-react";
 import "./App.css";
 
 const API_URL = "https://safeschema.onrender.com"; 
@@ -22,7 +21,6 @@ function App() {
   const [shadowResult, setShadowResult] = useState<any>(null);
   const [trace, setTrace] = useState<string[]>([]);
 
-  // Eval State
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResults, setEvalResults] = useState<any>(null);
 
@@ -83,9 +81,7 @@ function App() {
     try {
       const res = await axios.get(`${API_URL}/eval`);
       setEvalResults(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
     setEvalLoading(false);
   };
 
@@ -98,7 +94,7 @@ function App() {
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
-        <div className="sidebar-header"><Database size={18} className="icon-accent" /><span>Database</span></div>
+        <div className="sidebar-header">Database Explorer</div>
         <div className="sidebar-section">
           <h3 className="section-title">Live Schema</h3>
           <table><thead><tr><th>Table</th><th>Column</th></tr></thead>
@@ -110,20 +106,19 @@ function App() {
       <main className="main-workspace">
         <header className="workspace-header">
           <div className="logo">
-            <ShieldAlert size={32} className="icon-accent" />
+            <div className="logo-icon">S</div>
             <div>
               <h1>SafeSchema Agent</h1>
-              <p>AI database migrations with human-in-the-loop validation.</p>
+              <p>Agentic DB migrations with Human-in-the-loop.</p>
             </div>
           </div>
           
-          {/* TABS */}
           <div className="tabs">
             <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>
-              <Terminal size={16} /> Migrations
+              Migrations
             </button>
             <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>
-              <Activity size={16} /> Evaluation Suite
+              Evaluation Suite
             </button>
           </div>
         </header>
@@ -132,20 +127,13 @@ function App() {
           <>
             {!sql && !result && !loading && (
               <div className="welcome-container">
-                <div className="feature-grid">
-                  <div className="feature-card problem-card">
-                    <h3><XCircle size={18} /> The Problem</h3>
-                    <p>LLMs hallucinate. A blind <code>DELETE</code> query can destroy production data.</p>
-                  </div>
-                  <div className="feature-card solution-card">
-                    <h3><CheckCircle size={18} /> The Solution</h3>
-                    <p>LangGraph pauses execution. SQL is tested in a Shadow DB before committing.</p>
-                  </div>
-                </div>
+                <div className="hero-title">Prevent AI Database Disasters</div>
+                <div className="hero-subtitle">LangGraph pauses execution. SQL is tested in a Shadow DB before committing to production.</div>
+                
                 <div className="chip-grid">
                   {examplePrompts.map((p, i) => (
                     <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
-                      <ChevronRight size={14} /> "{p}"
+                      "{p}"
                     </button>
                   ))}
                 </div>
@@ -154,7 +142,7 @@ function App() {
 
             <div className="input-wrapper">
               <input type="text" className="main-input" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Ask the AI to modify the database..." disabled={loading || !!sql} />
-              <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}><Play size={18} /> Run</button>
+              <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}>{loading ? "Running..." : "Run Agent"}</button>
             </div>
 
             {error && <div className="alert-error">{error}</div>}
@@ -165,23 +153,34 @@ function App() {
                   <h2>Human Approval Required</h2>
                   <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
                 </div>
-                <pre className="code-window"><code>{sql}</code></pre>
+                
+                {/* FAKE MONACO EDITOR */}
+                <div className="editor-window">
+                  <div className="editor-header">
+                    <span className="dot dot-red"></span>
+                    <span className="dot dot-yellow"></span>
+                    <span className="dot dot-green"></span>
+                    <span className="editor-title">migration.sql</span>
+                  </div>
+                  <pre className="code-window"><code>{sql}</code></pre>
+                </div>
+
                 {shadowResult && (
                   <div className="shadow-result-box">
-                    <div className="shadow-header"><CheckCircle size={16} /> Shadow DB Passed</div>
-                    <p>Blast Radius: <strong>{shadowResult.rowCount} rows</strong></p>
+                    <div className="shadow-header">✓ Shadow DB Validation Passed</div>
+                    <p>Blast Radius: <strong>{shadowResult.rowCount} rows affected</strong></p>
                   </div>
                 )}
                 <div className="approval-actions">
                   <button className="btn-reject" onClick={() => resumeWorkflow(false)}>Reject</button>
-                  <button className={`btn-approve ${risk === "RISKY" ? "bg-danger" : ""}`} onClick={() => resumeWorkflow(true)}>Approve</button>
+                  <button className={`btn-approve ${risk === "RISKY" ? "bg-danger" : ""}`} onClick={() => resumeWorkflow(true)}>Approve & Execute</button>
                 </div>
               </div>
             )}
 
             {result && (
               <div className={`result-card ${result.includes("Error") || result.includes("Blocked") ? "result-error" : "result-success"}`}>
-                <h2>{result.includes("Error") || result.includes("Blocked") ? "Blocked" : "Success"}</h2>
+                <h2>{result.includes("Error") || result.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
                 <p>{result}</p>
                 <button className="btn-reset" onClick={() => { setResult(""); setPrompt(""); }}>New Migration</button>
               </div>
@@ -197,14 +196,14 @@ function App() {
                 <p>Automated Golden Dataset testing for the Risk Engine and Shadow DB.</p>
               </div>
               <button className="btn-run" onClick={runEvaluation} disabled={evalLoading}>
-                <Play size={18} /> {evalLoading ? "Running Tests..." : "Run Evaluation"}
+                {evalLoading ? "Running Tests..." : "Run Evaluation"}
               </button>
             </div>
 
             {evalResults && (
               <div className="eval-results">
                 <div className="eval-score-card">
-                  <h3>Score</h3>
+                  <h3>Test Score</h3>
                   <div className="score-circle">{evalResults.score}%</div>
                 </div>
                 <div className="eval-table">
@@ -230,9 +229,9 @@ function App() {
       </main>
 
       <aside className="trace-panel">
-        <div className="trace-header"><Terminal size={18} /><span>Trace</span></div>
+        <div className="trace-header">Agent Execution Trace</div>
         <div className="terminal-window">
-          {trace.map((t, i) => (<div key={i} className="trace-step"><span className="trace-cursor">{'>'}</span> {t}</div>))}
+          {trace.map((t, i) => (<div key={i} className="trace-step"><span className="trace-cursor">&gt;</span> {t}</div>))}
         </div>
       </aside>
     </div>
