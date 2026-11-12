@@ -80,25 +80,25 @@ body {
   color: var(--text-main);
 }
 
+/* 👈 FIX: Use flex instead of grid to allow resizing */
 .dashboard-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr 300px;
+  display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-/* Sidebar */
+/* 👈 FIX: Resizable Sidebar */
 .sidebar {
+  width: 280px;
+  min-width: 200px;
+  max-width: 500px;
   background-color: var(--bg-panel);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow-y: auto;
-  resize: horizontal;
+  resize: horizontal; /* Allows dragging the edge */
   overflow: auto;
-  min-width: 240px;
-  max-width: 400px;
 }
 .sidebar-header {
   padding: 20px;
@@ -118,7 +118,7 @@ body {
   margin: 0 0 12px 0;
 }
 
-/* Prettier Tables */
+/* Tables */
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -161,6 +161,7 @@ th {
 
 /* Main Workspace */
 .main-workspace {
+  flex: 1;
   padding: 40px;
   display: flex;
   flex-direction: column;
@@ -178,7 +179,7 @@ th {
   font-weight: 700;
   line-height: 1.2;
   color: var(--text-main);
-} /* Fixed overlap */
+} /* 👈 FIX: Overlap fixed */
 .hero-section p {
   color: var(--text-muted);
   margin: 0;
@@ -487,6 +488,7 @@ th {
 
 /* Trace */
 .trace-panel {
+  width: 300px;
   background-color: #000;
   border-left: 1px solid var(--border);
   display: flex;
@@ -521,9 +523,6 @@ th {
 }
 
 @media (max-width: 1024px) {
-  .dashboard-layout {
-    grid-template-columns: 240px 1fr;
-  }
   .trace-panel {
     display: none;
   }
@@ -537,6 +536,8 @@ th {
     border-right: none;
     border-bottom: 1px solid var(--border);
     max-height: 300px;
+    width: 100%;
+    resize: none;
   }
   .main-workspace {
     padding: 20px;

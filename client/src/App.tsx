@@ -200,7 +200,7 @@ function App() {
                   <h2>{result.message?.includes("Error") || result.message?.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
                   <p>{result.message}</p>
                   
-                  {/* THIS RENDERS THE DATA TABLE AFTER APPROVAL */}
+                  {/* 👈 THIS RENDERS THE DATA TABLE AFTER APPROVAL */}
                   {result.rows && result.rows.length > 0 && (
                     <div className="table-wrapper" style={{ marginTop: "20px", background: "var(--bg-panel)" }}>
                       <table>
