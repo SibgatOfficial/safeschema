@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import Editor from "@monaco-editor/react";
 import "./App.css";
 
-const API_URL = "https://safeschema.onrender.com"; 
+const API_URL = "https://safeschema.onrender.com"; // Use localhost for local testing
 
 function App() {
   const [activeTab, setActiveTab] = useState<"migrations" | "evaluation">("migrations");
@@ -69,7 +70,8 @@ function App() {
   const resumeWorkflow = async (approved: boolean) => {
     setLoading(true); setTrace(prev => [...prev, `Decision: ${approved ? 'APPROVED' : 'REJECTED'}`]);
     try {
-      const res = await axios.post(`${API_URL}/resume`, { approved });
+      // 👈 Send the edited SQL back to the server
+      const res = await axios.post(`${API_URL}/resume`, { approved, editedSql: sql });
       setResult(res.data.result); setSql(""); setRisk(""); setShadowResult(null);
       fetchSchema(); fetchTableData();
     } catch (err) { setError("Failed to resume."); }
@@ -114,12 +116,8 @@ function App() {
           </div>
           
           <div className="tabs">
-            <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>
-              Migrations
-            </button>
-            <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>
-              Evaluation Suite
-            </button>
+            <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>Migrations</button>
+            <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>Evaluation Suite</button>
           </div>
         </header>
 
@@ -129,12 +127,9 @@ function App() {
               <div className="welcome-container">
                 <div className="hero-title">Prevent AI Database Disasters</div>
                 <div className="hero-subtitle">LangGraph pauses execution. SQL is tested in a Shadow DB before committing to production.</div>
-                
                 <div className="chip-grid">
                   {examplePrompts.map((p, i) => (
-                    <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
-                      "{p}"
-                    </button>
+                    <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>"{p}"</button>
                   ))}
                 </div>
               </div>
@@ -154,15 +149,27 @@ function App() {
                   <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
                 </div>
                 
-                {/* FAKE MONACO EDITOR */}
+                {/* REAL MONACO EDITOR */}
                 <div className="editor-window">
                   <div className="editor-header">
                     <span className="dot dot-red"></span>
                     <span className="dot dot-yellow"></span>
                     <span className="dot dot-green"></span>
-                    <span className="editor-title">migration.sql</span>
+                    <span className="editor-title">migration.sql (Editable)</span>
                   </div>
-                  <pre className="code-window"><code>{sql}</code></pre>
+                  <Editor
+                    height="200px"
+                    defaultLanguage="sql"
+                    value={sql}
+                    theme="vs-dark"
+                    onChange={(value) => setSql(value || "")} // 👈 Update state when user edits
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      padding: { top: 16 },
+                      scrollBeyondLastLine: false,
+                    }}
+                  />
                 </div>
 
                 {shadowResult && (
