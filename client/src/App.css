@@ -279,3 +279,22 @@ body {
   min-height: 80px;
   white-space: pre-wrap;
 }
+/* Trace Panel for Agent Execution */
+.main-content {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.workspace {
+  flex: 2;
+}
+
+.trace-panel {
+  flex: 1;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 400px;
+}

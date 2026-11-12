@@ -3,18 +3,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
-interface SchemaColumn {
-  table_name: string;
-  column_name: string;
-  data_type: string;
-}
-
-interface ShadowResult {
-  status: string;
-  rows: any[];
-  rowCount: number;
-  fields: string[];
-}
+const API_URL = "http://localhost:3000"; // Change to your Render URL for deployment
 
 function App() {
   const [prompt, setPrompt] = useState<string>("");
@@ -24,28 +13,28 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   
-  const [schema, setSchema] = useState<SchemaColumn[]>([]);
+  // State for schema and data
+  const [schema, setSchema] = useState<any[]>([]);
   const [tableData, setTableData] = useState<any[]>([]);
   const [tableColumns, setTableColumns] = useState<string[]>([]);
-  const [shadowResult, setShadowResult] = useState<ShadowResult | null>(null);
+  const [shadowResult, setShadowResult] = useState<any>(null);
+  
+  // State for the Agent Trace
+  const [trace, setTrace] = useState<string[]>([]);
 
   const fetchSchema = async () => {
     try {
-      const res = await axios.get("https://safeschema.onrender.com/schema");
+      const res = await axios.get(`${API_URL}/schema`);
       setSchema(res.data.schema);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const fetchTableData = async () => {
     try {
-      const res = await axios.get("https://safeschema.onrender.com/data/users");
+      const res = await axios.get(`${API_URL}/data/users`);
       setTableData(res.data.data);
       setTableColumns(res.data.columns);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const refreshAll = () => {
@@ -53,25 +42,22 @@ function App() {
     fetchTableData();
   };
 
-  useEffect(() => {
-    refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { refreshAll(); }, []);
 
   const startWorkflow = async () => {
-    if (!prompt.trim()) {
-      setError("Please enter a migration prompt.");
-      return;
-    }
+    if (!prompt.trim()) return;
     setLoading(true);
     setError("");
     setResult("");
     setSql("");
     setShadowResult(null);
+    setTrace(["Initializing Agent..."]); // Start trace
     
     try {
-      const res = await axios.post("https://safeschema.onrender.com/start", { prompt });
+      const res = await axios.post(`${API_URL}/start`, { prompt });
       
+      if (res.data.trace) setTrace(res.data.trace); // Update trace from backend
+
       if (res.data.interrupt) {
         setSql(res.data.interrupt.proposed_sql);
         setRisk(res.data.interrupt.risk);
@@ -80,8 +66,7 @@ function App() {
         setResult(res.data.result);
         refreshAll();
       }
-    }      catch (err: any) {
-      // This will print the EXACT backend error on your screen
+    } catch (err: any) {
       const errorMsg = err.response?.data?.details || err.message;
       setError(`Backend Error: ${errorMsg}`);
     }
@@ -92,11 +77,12 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post("https://safeschema.onrender.com/resume", { approved });
+      const res = await axios.post(`${API_URL}/resume`, { approved });
       setResult(res.data.result);
       setSql("");
       setRisk("");
       setShadowResult(null);
+      setTrace([]);
       refreshAll();
     } catch (err) {
       setError("Failed to resume workflow.");
@@ -111,30 +97,22 @@ function App() {
     setResult("");
     setError("");
     setShadowResult(null);
+    setTrace([]);
     refreshAll();
   };
 
   return (
     <div className="app-container">
-      {/* SIDEBAR */}
+      {/* SIDEBAR - DATABASE EXPLORER */}
       <div className="sidebar">
-        <div className="sidebar-header">
-          Database Explorer
-        </div>
-        
+        <div className="sidebar-header">Database Explorer</div>
         <div className="panel">
           <div className="panel-title">Schema</div>
           <table className="data-table">
-            <thead>
-              <tr>
-                <th>Table</th>
-                <th>Column</th>
-                <th>Type</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Table</th><th>Column</th><th>Type</th></tr></thead>
             <tbody>
               {schema.map((col, idx) => (
-                <tr key={`${col.table_name}-${col.column_name}-${idx}`}>
+                <tr key={idx}>
                   <td style={{ fontWeight: 600 }}>{col.table_name}</td>
                   <td>{col.column_name}</td>
                   <td style={{ color: "var(--text-muted)" }}>{col.data_type}</td>
@@ -143,23 +121,14 @@ function App() {
             </tbody>
           </table>
         </div>
-
         <div className="panel">
-          <div className="panel-title">Users Table Preview</div>
-          {tableData.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>No data</p>
-          ) : (
+          <div className="panel-title">Users Preview</div>
+          {tableData.length === 0 ? <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>No data</p> : (
             <table className="data-table">
-              <thead>
-                <tr>
-                  {tableColumns.map(col => <th key={col}>{col}</th>)}
-                </tr>
-              </thead>
+              <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
               <tbody>
                 {tableData.map((row, idx) => (
-                  <tr key={idx}>
-                    {tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}
-                  </tr>
+                  <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
                 ))}
               </tbody>
             </table>
@@ -167,92 +136,60 @@ function App() {
         </div>
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT - AGENT INTERFACE */}
       <div className="main-content">
+        
+        {/* Left side of main content (Input/Results) */}
         <div className="workspace">
-          
           <div className="header">
             <h1>SafeSchema Agent</h1>
-            <p>AI-powered database migrations with human-in-the-loop validation.</p>
+            <p>AI database migrations with human-in-the-loop validation.</p>
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}
 
-          {/* INPUT SCREEN */}
           {!sql && !result && (
             <div className="input-group">
               <input
-                type="text"
-                className="input-field"
-                value={prompt}
+                type="text" className="input-field" value={prompt}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
-                placeholder="e.g., Split full_name into first_name and last_name"
+                placeholder="e.g., Delete all users from the database"
                 disabled={loading}
                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && startWorkflow()}
               />
               <button className="btn btn-primary" onClick={startWorkflow} disabled={loading}>
-                {loading ? "Thinking..." : "Run Agent"}
+                {loading ? "Agent Running..." : "Run Agent"}
               </button>
             </div>
           )}
 
-          {loading && !sql && <div className="spinner" style={{ marginTop: "40px" }}></div>}
-
-          {/* APPROVAL SCREEN */}
           {sql && (
             <div className={`card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
-              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", display: "flex", alignItems: "center" }}>
+              <h2 style={{ fontSize: "18px", display: "flex", alignItems: "center" }}>
                 Human Approval Required
-                <span className={`badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>
-                  {risk} RISK
-                </span>
+                <span className={`badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk} RISK</span>
               </h2>
-              
               <div className="panel-title" style={{ marginTop: "24px" }}>Proposed SQL</div>
-              
-              {/* PURE CSS CODE BLOCK */}
-              <pre className="code-block">
-                <code>{sql}</code>
-              </pre>
+              <pre className="code-block"><code>{sql}</code></pre>
 
               {shadowResult && shadowResult.status === "PASSED" && (
                 <div style={{ marginTop: "24px" }}>
-                  <div className="panel-title" style={{ color: "var(--success)" }}>
-                    Shadow DB Preview (Passed)
-                  </div>
-                  <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
-                    Affected Rows: {shadowResult.rowCount}
-                  </p>
-                  
-                  {shadowResult.rows && shadowResult.rows.length > 0 ? (
-                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                  <div className="panel-title" style={{ color: "var(--success)" }}>Shadow DB Test: PASSED (Affected Rows: {shadowResult.rowCount})</div>
+                  {shadowResult.rows && shadowResult.rows.length > 0 && (
+                    <div style={{ maxHeight: "150px", overflowY: "auto" }}>
                       <table className="data-table">
-                        <thead>
-                          <tr>
-                            {shadowResult.fields.map((f: string) => <th key={f}>{f}</th>)}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {shadowResult.rows.map((row: any, i: number) => (
-                            <tr key={i}>
-                              {shadowResult.fields.map((f: string) => <td key={f}>{row[f]?.toString()}</td>)}
-                            </tr>
-                          ))}
-                        </tbody>
+                        <thead><tr>{shadowResult.fields.map((f: string) => <th key={f}>{f}</th>)}</tr></thead>
+                        <tbody>{shadowResult.rows.map((row: any, i: number) => (
+                          <tr key={i}>{shadowResult.fields.map((f: string) => <td key={f}>{row[f]?.toString()}</td>)}</tr>
+                        ))}</tbody>
                       </table>
                     </div>
-                  ) : (
-                    <p style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>
-                      No rows returned (e.g., ALTER/INSERT).
-                    </p>
                   )}
                 </div>
               )}
 
               <div className="action-bar">
-                <button className="btn btn-danger" onClick={() => resumeWorkflow(false)} disabled={loading}>
-                  Reject
-                </button>
+                <button className="btn btn-danger" onClick={() => resumeWorkflow(false)} disabled={loading}>Reject</button>
                 <button className={`btn ${risk === "RISKY" ? "btn-danger" : "btn-success"}`} onClick={() => resumeWorkflow(true)} disabled={loading}>
                   {risk === "RISKY" ? "Force Execute" : "Approve & Execute"}
                 </button>
@@ -260,23 +197,42 @@ function App() {
             </div>
           )}
 
-          {/* RESULT SCREEN */}
           {result && (
-            <div className={`card ${result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "risk-high" : ""}`} style={{ borderColor: result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "var(--danger)" : "var(--success)" }}>
-              <h2 style={{ fontSize: "18px", margin: "0 0 16px 0", color: result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "var(--danger)" : "var(--success)" }}>
-                {result.includes("Blocked") || result.includes("Error") || result.includes("rejected") ? "Execution Blocked" : "Execution Successful"}
+            <div className={`card ${result.includes("Blocked") || result.includes("rejected") ? "risk-high" : ""}`}>
+              <h2 style={{ color: result.includes("Blocked") || result.includes("rejected") ? "var(--danger)" : "var(--success)" }}>
+                {result.includes("Blocked") || result.includes("rejected") ? "Execution Blocked" : "Execution Successful"}
               </h2>
-              <p style={{ fontSize: "14px", color: "var(--text)" }}>{result}</p>
-              
-              <div className="action-bar" style={{ justifyContent: "flex-start", marginTop: "16px" }}>
-                <button className="btn btn-primary" onClick={resetApp}>
-                  New Migration
-                </button>
-              </div>
+              <p style={{ fontSize: "14px" }}>{result}</p>
+              <button className="btn btn-primary" onClick={resetApp} style={{ marginTop: "16px" }}>New Migration</button>
             </div>
           )}
-
         </div>
+
+        {/* Right side of main content (Agent Trace / Logs) */}
+        <div className="trace-panel">
+          <div className="panel-title" style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
+            Agent Execution Trace
+          </div>
+          <div style={{ padding: "20px", fontFamily: "monospace", fontSize: "13px", color: "var(--text-muted)" }}>
+            {trace.length === 0 ? (
+              <p>Waiting for task...</p>
+            ) : (
+              trace.map((step, idx) => (
+                <div key={idx} style={{ marginBottom: "8px", display: "flex", gap: "8px" }}>
+                  <span style={{ color: "var(--success)" }}>✓</span> 
+                  <span>Node: {step}</span>
+                </div>
+              ))
+            )}
+            {loading && (
+              <div style={{ marginTop: "12px", display: "flex", gap: "8px", color: "var(--accent)" }}>
+                <span className="spinner" style={{ width: "12px", height: "12px", borderWidth: "2px" }}></span>
+                <span>Processing...</span>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );
