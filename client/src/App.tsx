@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API_URL = "http://localhost:3000"; // Change to your Render URL for deployment
+const API_URL = "https://safeschema.onrender.com"; // Change to your Render URL for deployment
 
 function App() {
   const [prompt, setPrompt] = useState<string>("");
