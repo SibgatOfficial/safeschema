@@ -79,7 +79,7 @@ function App() {
     setLoading(false);
   };
 
-  // 👈 NEW: Real-time streaming evaluation
+  // Real-time streaming evaluation
   const runEvaluation = async () => {
     setEvalLoading(true);
     setEvalResults(null);
