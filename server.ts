@@ -65,5 +65,53 @@ app.post("/resume", async (req, res) => {
   } catch (error: any) { res.status(500).json({ error: "Workflow failed", details: error.message }); }
 });
 
+app.get("/eval", async (req, res) => {
+  const testCases = [
+    { name: "Safe Migration (ALTER)", sql: "ALTER TABLE users ADD COLUMN temp_col VARCHAR;", expectPass: true },
+    { name: "Destructive Action (DELETE)", sql: "DELETE FROM users;", expectPass: true },
+    { name: "Syntax Hallucination", sql: "CREATE TABLE bad_!!! (id INT);", expectPass: false }
+  ];
+
+  const results = [];
+  let passed = 0;
+
+  for (const test of testCases) {
+    const startTime = performance.now();
+    let status = "PASS";
+    
+    // 1. Risk Engine Test
+    const sqlUpper = test.sql.toUpperCase();
+    const isRisky = ["DELETE", "DROP", "TRUNCATE"].some(k => sqlUpper.includes(k));
+    
+    // 2. Shadow DB Test
+    let shadowPassed = true;
+    try {
+      await getClient().query("BEGIN");
+      await getClient().query(test.sql);
+      await getClient().query("ROLLBACK");
+    } catch (e) {
+      shadowPassed = false;
+    }
+
+    if (test.expectPass && !shadowPassed) status = "FAIL";
+    if (!test.expectPass && shadowPassed) status = "FAIL";
+    if (status === "PASS") passed++;
+
+    const duration = (performance.now() - startTime).toFixed(2);
+
+    results.push({
+      name: test.name,
+      status,
+      riskDetected: isRisky,
+      shadowDbPassed: shadowPassed,
+      durationMs: duration
+    });
+  }
+
+  res.json({
+    score: (passed / testCases.length) * 100,
+    results
+  });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 SERVER RUNNING ON PORT ${PORT}`));

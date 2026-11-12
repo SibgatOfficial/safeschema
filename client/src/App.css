@@ -570,3 +570,101 @@ th {
     opacity: 0.7;
   }
 }
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1px;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: var(--text-main);
+}
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Evaluation Dashboard */
+.eval-container {
+  width: 100%;
+  max-width: 800px;
+  margin-top: 20px;
+}
+
+.eval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  background: var(--bg-panel);
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.eval-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+}
+.eval-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.eval-results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.eval-score-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  padding: 24px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.score-circle {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--success);
+  margin-top: 12px;
+}
+
+.eval-table {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.eval-table table {
+  width: 100%;
+}
+.eval-table th,
+.eval-table td {
+  padding: 16px;
+  font-size: 14px;
+}
+.eval-table th {
+  background: var(--bg-base);
+}
