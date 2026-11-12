@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { Database, ShieldAlert, Cpu, Terminal, Play, CheckCircle, XCircle, ChevronRight } from "lucide-react";
 import "./App.css";
 
-const API_URL = "https://safeschema.onrender.com"; // Make sure this matches your Render URL!
+const API_URL = "https://safeschema.onrender.com"; // Ensure this is your Render URL
 
 function App() {
   const [prompt, setPrompt] = useState<string>("");
@@ -71,7 +72,7 @@ function App() {
   const resumeWorkflow = async (approved: boolean) => {
     setLoading(true);
     setError("");
-    setTrace(prev => [...prev, `Human Approval Gate: ${approved ? 'APPROVED' : 'REJECTED'}`]);
+    setTrace(prev => [...prev, `Human Decision: ${approved ? 'APPROVED' : 'REJECTED'}`]);
     try {
       const res = await axios.post(`${API_URL}/resume`, { approved });
       setResult(res.data.result);
@@ -97,185 +98,188 @@ function App() {
   ];
 
   return (
-    <div className="app-container">
-      {/* SIDEBAR - DATABASE EXPLORER */}
-      <div className="sidebar">
-        <div className="sidebar-header">Database Explorer</div>
-        
-        <div className="panel">
-          <div className="panel-title">Live Schema</div>
-          <table className="data-table">
-            <thead><tr><th>Table</th><th>Column</th><th>Type</th></tr></thead>
-            <tbody>
-              {schema.map((col, idx) => (
-                <tr key={idx}>
-                  <td style={{ fontWeight: 600 }}>{col.table_name}</td>
-                  <td>{col.column_name}</td>
-                  <td style={{ color: "var(--text-muted)" }}>{col.data_type}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="dashboard-layout">
+      
+      {/* LEFT SIDEBAR - SCHEMA */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <Database size={18} className="icon-accent" />
+          <span>Database Explorer</span>
         </div>
-
-        <div className="panel">
-          <div className="panel-title">Users Data Preview</div>
-          {tableData.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No users found.</p>
-          ) : (
-            <table className="data-table">
-              <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
+        
+        <div className="sidebar-section">
+          <h3 className="section-title">Live Schema</h3>
+          <div className="table-container">
+            <table>
+              <thead><tr><th>Table</th><th>Column</th><th>Type</th></tr></thead>
               <tbody>
-                {tableData.map((row, idx) => (
-                  <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
+                {schema.map((col, idx) => (
+                  <tr key={idx}>
+                    <td className="text-accent">{col.table_name}</td>
+                    <td>{col.column_name}</td>
+                    <td className="text-muted">{col.data_type}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      </div>
-
-      {/* MAIN CONTENT */}
-      <div className="main-content">
-        
-        <div className="workspace">
-          <div className="header">
-            <h1>SafeSchema Agent</h1>
-            <p>AI-powered database migrations with human-in-the-loop validation.</p>
           </div>
-
-          {error && <div className="alert alert-error">{error}</div>}
-
-          {/* LANDING PAGE / WELCOME SCREEN */}
-          {!sql && !result && !loading && (
-            <>
-              <div className="hero-section">
-                <h2>The Problem</h2>
-                <p>LLMs hallucinate. If a developer blindly runs an AI-generated <code>DELETE</code> query without a <code>WHERE</code> clause, they will destroy production data.</p>
-                
-                <h2>The Solution</h2>
-                <p>SafeSchema uses <strong>LangGraph</strong> to pause execution. It runs AI-generated SQL in a <strong>Shadow PostgreSQL Database</strong> using <code>BEGIN/ROLLBACK</code> transactions to preview the blast radius, forcing a human to approve before committing to production.</p>
-              </div>
-
-              <div className="tech-stack-section">
-                <p className="panel-title">Powered By</p>
-                <div className="tech-badges">
-                  <span className="tech-badge">React + Vite</span>
-                  <span className="tech-badge">Node.js + Express</span>
-                  <span className="tech-badge">LangGraph.js</span>
-                  <span className="tech-badge">PostgreSQL (Neon)</span>
-                  <span className="tech-badge">PGVector (RAG)</span>
-                  <span className="tech-badge">Groq API (Llama 3)</span>
-                </div>
-              </div>
-
-              <div className="prompt-suggestions">
-                <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px", fontWeight: 600 }}>Try a demo prompt:</p>
-                <div className="chip-container">
-                  {examplePrompts.map((p, i) => (
-                    <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
-                      "{p}"
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* INPUT BOX */}
-          <div className="input-group" style={{ marginTop: "30px" }}>
-            <input
-              type="text" className="input-field" value={prompt}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
-              placeholder="Ask the AI to modify the database..."
-              disabled={loading || !!sql}
-              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && startWorkflow()}
-            />
-            <button className="btn btn-primary" onClick={() => startWorkflow()} disabled={loading || !!sql}>
-              {loading ? "Agent Working..." : "Run Agent"}
-            </button>
-          </div>
-
-          {/* APPROVAL SCREEN */}
-          {sql && (
-            <div className={`card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
-              <h2 style={{ fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>Human Approval Required</span>
-                <span className={`badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk} RISK</span>
-              </h2>
-              
-              <div className="panel-title" style={{ marginTop: "24px" }}>Proposed SQL Migration</div>
-              <pre className="code-block"><code>{sql}</code></pre>
-
-              {shadowResult && shadowResult.status === "PASSED" && (
-                <div style={{ marginTop: "20px", background: "rgba(35, 134, 54, 0.1)", padding: "16px", borderRadius: "6px", border: "1px solid var(--success)" }}>
-                  <div className="panel-title" style={{ color: "var(--success)", marginBottom: "8px" }}>
-                    Shadow DB Validation Passed
-                  </div>
-                  <p style={{ fontSize: "13px", color: "var(--text)", marginBottom: "12px" }}>
-                    <strong>Blast Radius:</strong> {shadowResult.rowCount} rows affected.
-                  </p>
-                  
-                  {shadowResult.rows && shadowResult.rows.length > 0 && (
-                    <div style={{ maxHeight: "150px", overflowY: "auto", background: "var(--bg)", borderRadius: "4px" }}>
-                      <table className="data-table">
-                        <thead><tr>{shadowResult.fields.map((f: string) => <th key={f}>{f}</th>)}</tr></thead>
-                        <tbody>{shadowResult.rows.map((row: any, i: number) => (
-                          <tr key={i}>{shadowResult.fields.map((f: string) => <td key={f}>{row[f]?.toString()}</td>)}</tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="action-bar">
-                <button className="btn btn-danger" onClick={() => resumeWorkflow(false)} disabled={loading}>Reject</button>
-                <button className={`btn ${risk === "RISKY" ? "btn-danger" : "btn-success"}`} onClick={() => resumeWorkflow(true)} disabled={loading}>
-                  {risk === "RISKY" ? "Force Execute" : "Approve & Execute"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* RESULT SCREEN */}
-          {result && (
-            <div className={`card ${(result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "risk-high" : ""}`} style={{ borderColor: (result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "var(--danger)" : "var(--success)" }}>
-              <h2 style={{ color: (result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "var(--danger)" : "var(--success)" }}>
-                {(result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "Execution Blocked" : "Execution Successful"}
-              </h2>
-              <p style={{ fontSize: "14px", color: "var(--text)" }}>{result}</p>
-              <button className="btn btn-primary" onClick={resetApp} style={{ marginTop: "16px" }}>Start New Migration</button>
-            </div>
-          )}
         </div>
 
-        {/* AGENT TRACE PANEL */}
-        <div className="trace-panel">
-          <div className="panel-title" style={{ padding: "20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
-            <span>Agent Execution Trace</span>
-            {loading && <span className="spinner" style={{ width: "14px", height: "14px", borderWidth: "2px" }}></span>}
-          </div>
-          <div style={{ padding: "20px", fontFamily: "monospace", fontSize: "13px", color: "var(--text-muted)", lineHeight: "1.6" }}>
-            {trace.length === 0 ? (
-              <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
-                Waiting for task...<br/><br/>
-                The LangGraph state machine will appear here as it executes nodes.
-              </div>
+        <div className="sidebar-section">
+          <h3 className="section-title">Users Preview</h3>
+          <div className="table-container">
+            {tableData.length === 0 ? (
+              <p className="text-muted" style={{ padding: "10px" }}>No users found.</p>
             ) : (
-              trace.map((step, idx) => (
-                <div key={idx} style={{ marginBottom: "8px", display: "flex", gap: "8px" }}>
-                  <span style={{ color: step.includes("Error") || step.includes("Blocked") ? "var(--danger)" : "var(--success)" }}>
-                    {step.includes("Error") || step.includes("Blocked") ? "✗" : "✓"}
-                  </span> 
-                  <span>{step}</span>
-                </div>
-              ))
+              <table>
+                <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
+                <tbody>
+                  {tableData.map((row, idx) => (
+                    <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
+      </aside>
 
-      </div>
+      {/* CENTER - MAIN WORKSPACE */}
+      <main className="main-workspace">
+        <header className="workspace-header">
+          <div className="logo">
+            <ShieldAlert size={32} className="icon-accent" />
+            <div>
+              <h1>SafeSchema Agent</h1>
+              <p>Agentic AI for safe database migrations.</p>
+            </div>
+          </div>
+        </header>
+
+        {!sql && !result && !loading && (
+          <div className="welcome-container">
+            <div className="feature-grid">
+              <div className="feature-card problem-card">
+                <h3><XCircle size={18} /> The Problem</h3>
+                <p>LLMs hallucinate. If a developer blindly runs an AI-generated <code>DELETE</code> query, it can destroy production data.</p>
+              </div>
+              <div className="feature-card solution-card">
+                <h3><CheckCircle size={18} /> The Solution</h3>
+                <p>LangGraph pauses execution. AI SQL is tested in a <strong>Shadow PostgreSQL DB</strong> to preview the blast radius before committing.</p>
+              </div>
+            </div>
+
+            <div className="tech-stack">
+              <span className="tech-tag">React</span>
+              <span className="tech-tag">Node.js</span>
+              <span className="tech-tag">LangGraph.js</span>
+              <span className="tech-tag">PostgreSQL</span>
+              <span className="tech-tag">PGVector</span>
+              <span className="tech-tag">Groq AI</span>
+            </div>
+
+            <div className="prompt-area">
+              <p className="section-title">Try a demo prompt:</p>
+              <div className="chip-grid">
+                {examplePrompts.map((p, i) => (
+                  <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
+                    <ChevronRight size={14} /> "{p}"
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* INPUT BAR */}
+        <div className={`input-wrapper ${loading || sql ? 'disabled' : ''}`}>
+          <input
+            type="text" 
+            className="main-input" 
+            value={prompt}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
+            placeholder="Ask the AI to modify the database..."
+            disabled={loading || !!sql}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && startWorkflow()}
+          />
+          <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}>
+            <Play size={18} fill="currentColor" /> {loading ? "Running..." : "Run Agent"}
+          </button>
+        </div>
+
+        {error && <div className="alert-error">{error}</div>}
+
+        {/* APPROVAL CARD */}
+        {sql && (
+          <div className={`approval-card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
+            <div className="approval-header">
+              <h2>Human Approval Required</h2>
+              <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk} RISK</span>
+            </div>
+            
+            <h3 className="section-title" style={{ marginTop: "20px" }}>Proposed SQL</h3>
+            <pre className="code-window"><code>{sql}</code></pre>
+
+            {shadowResult && shadowResult.status === "PASSED" && (
+              <div className="shadow-result-box">
+                <div className="shadow-header">
+                  <CheckCircle size={16} /> Shadow DB Validation Passed
+                </div>
+                <p className="blast-radius">Blast Radius: <strong>{shadowResult.rowCount} rows affected</strong></p>
+                
+                {shadowResult.rows && shadowResult.rows.length > 0 && (
+                  <div className="table-container" style={{ maxHeight: "150px" }}>
+                    <table>
+                      <thead><tr>{shadowResult.fields.map((f: string) => <th key={f}>{f}</th>)}</tr></thead>
+                      <tbody>{shadowResult.rows.map((row: any, i: number) => (
+                        <tr key={i}>{shadowResult.fields.map((f: string) => <td key={f}>{row[f]?.toString()}</td>)}</tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="approval-actions">
+              <button className="btn-reject" onClick={() => resumeWorkflow(false)} disabled={loading}>Reject Migration</button>
+              <button className={`btn-approve ${risk === "RISKY" ? "bg-danger" : ""}`} onClick={() => resumeWorkflow(true)} disabled={loading}>
+                {risk === "RISKY" ? "Force Execute" : "Approve & Execute"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* RESULT CARD */}
+        {result && (
+          <div className={`result-card ${(result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "result-error" : "result-success"}`}>
+            <h2>{(result.includes("Blocked") || result.includes("Error") || result.includes("rejected")) ? "Execution Blocked" : "Execution Successful"}</h2>
+            <p>{result}</p>
+            <button className="btn-reset" onClick={resetApp}>Start New Migration</button>
+          </div>
+        )}
+      </main>
+
+      {/* RIGHT SIDEBAR - TRACE TERMINAL */}
+      <aside className="trace-panel">
+        <div className="trace-header">
+          <Terminal size={18} />
+          <span>Agent Execution Trace</span>
+          {loading && <span className="pulse-dot"></span>}
+        </div>
+        <div className="terminal-window">
+          {trace.length === 0 ? (
+            <div className="text-muted italic">Waiting for task...<br/><br/>LangGraph nodes will appear here.</div>
+          ) : (
+            trace.map((step, idx) => (
+              <div key={idx} className="trace-step">
+                <span className="trace-cursor">{'>'}</span> 
+                <span className={step.includes("Error") ? "text-danger" : "text-success"}>{step}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+
     </div>
   );
 }
