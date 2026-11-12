@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import Editor from "@monaco-editor/react";
 import "./App.css";
@@ -17,8 +17,6 @@ function App() {
   const [error, setError] = useState<string>("");
   
   const [schema, setSchema] = useState<any[]>([]);
-  const [tableData, setTableData] = useState<any[]>([]);
-  const [tableColumns, setTableColumns] = useState<string[]>([]);
   const [shadowResult, setShadowResult] = useState<any>(null);
   const [trace, setTrace] = useState<string[]>([]);
 
