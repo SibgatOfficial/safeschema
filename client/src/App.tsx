@@ -17,6 +17,8 @@ function App() {
   const [error, setError] = useState<string>("");
   
   const [schema, setSchema] = useState<any[]>([]);
+  const [tableData, setTableData] = useState<any[]>([]);
+  const [tableColumns, setTableColumns] = useState<string[]>([]);
   const [shadowResult, setShadowResult] = useState<any>(null);
   const [trace, setTrace] = useState<string[]>([]);
 
