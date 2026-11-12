@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
-const API_URL = "https://safeschema.onrender.com"; // Ensure this is your Render URL
+const API_URL = "https://safeschema.onrender.com"; // Make sure this matches your Render URL!
 
 function App() {
   const [prompt, setPrompt] = useState<string>("");
@@ -34,12 +34,7 @@ function App() {
     } catch (err) { console.error(err); }
   };
 
-  const refreshAll = () => {
-    fetchSchema();
-    fetchTableData();
-  };
-
-  useEffect(() => { refreshAll(); }, []);
+  useEffect(() => { fetchSchema(); fetchTableData(); }, []);
 
   const startWorkflow = async (overridePrompt?: string) => {
     const activePrompt = overridePrompt || prompt;
@@ -50,7 +45,7 @@ function App() {
     setResult("");
     setSql("");
     setShadowResult(null);
-    setTrace(["Initializing SafeSchema Agent...", "Connecting to database..."]);
+    setTrace(["Initializing LangGraph State Machine...", "Connecting to Neon PostgreSQL..."]);
     
     try {
       const res = await axios.post(`${API_URL}/start`, { prompt: activePrompt });
@@ -63,7 +58,7 @@ function App() {
         setShadowResult(res.data.interrupt.shadow_result);
       } else if (res.data.result) {
         setResult(res.data.result);
-        refreshAll();
+        fetchSchema(); fetchTableData();
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.details || err.message;
@@ -76,14 +71,14 @@ function App() {
   const resumeWorkflow = async (approved: boolean) => {
     setLoading(true);
     setError("");
-    setTrace(prev => [...prev, `Human Decision: ${approved ? 'APPROVED' : 'REJECTED'}`]);
+    setTrace(prev => [...prev, `Human Approval Gate: ${approved ? 'APPROVED' : 'REJECTED'}`]);
     try {
       const res = await axios.post(`${API_URL}/resume`, { approved });
       setResult(res.data.result);
       setSql("");
       setRisk("");
       setShadowResult(null);
-      refreshAll();
+      fetchSchema(); fetchTableData();
     } catch (err) {
       setError("Failed to resume workflow.");
     }
@@ -91,25 +86,19 @@ function App() {
   };
 
   const resetApp = () => {
-    setPrompt("");
-    setSql("");
-    setRisk("");
-    setResult("");
-    setError("");
-    setShadowResult(null);
-    setTrace([]);
-    refreshAll();
+    setPrompt(""); setSql(""); setRisk(""); setResult(""); setError(""); setShadowResult(null); setTrace([]);
+    fetchSchema(); fetchTableData();
   };
 
   const examplePrompts = [
     "Split the full_name into first_name and last_name",
     "Delete all users from the database",
-    "Add a column called is_active to users"
+    "Add a column called phone_number to users"
   ];
 
   return (
     <div className="app-container">
-      {/* SIDEBAR */}
+      {/* SIDEBAR - DATABASE EXPLORER */}
       <div className="sidebar">
         <div className="sidebar-header">Database Explorer</div>
         
@@ -132,7 +121,7 @@ function App() {
         <div className="panel">
           <div className="panel-title">Users Data Preview</div>
           {tableData.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No users found in database.</p>
+            <p style={{ fontSize: "13px", color: "var(--text-muted)", fontStyle: "italic" }}>No users found.</p>
           ) : (
             <table className="data-table">
               <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
@@ -157,28 +146,48 @@ function App() {
 
           {error && <div className="alert alert-error">{error}</div>}
 
-          {/* WELCOME SCREEN (When no action is happening) */}
+          {/* LANDING PAGE / WELCOME SCREEN */}
           {!sql && !result && !loading && (
-            <div className="welcome-card">
-              <h2>How it works</h2>
-              <p>Type a natural language command below. The AI will generate SQL, test it on a Shadow Database, and pause for your approval before touching production.</p>
-              
-              <div className="prompt-suggestions">
-                <p style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "8px" }}>Try an example:</p>
-                {examplePrompts.map((p, i) => (
-                  <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
-                    "{p}"
-                  </button>
-                ))}
+            <>
+              <div className="hero-section">
+                <h2>The Problem</h2>
+                <p>LLMs hallucinate. If a developer blindly runs an AI-generated <code>DELETE</code> query without a <code>WHERE</code> clause, they will destroy production data.</p>
+                
+                <h2>The Solution</h2>
+                <p>SafeSchema uses <strong>LangGraph</strong> to pause execution. It runs AI-generated SQL in a <strong>Shadow PostgreSQL Database</strong> using <code>BEGIN/ROLLBACK</code> transactions to preview the blast radius, forcing a human to approve before committing to production.</p>
               </div>
-            </div>
+
+              <div className="tech-stack-section">
+                <p className="panel-title">Powered By</p>
+                <div className="tech-badges">
+                  <span className="tech-badge">React + Vite</span>
+                  <span className="tech-badge">Node.js + Express</span>
+                  <span className="tech-badge">LangGraph.js</span>
+                  <span className="tech-badge">PostgreSQL (Neon)</span>
+                  <span className="tech-badge">PGVector (RAG)</span>
+                  <span className="tech-badge">Groq API (Llama 3)</span>
+                </div>
+              </div>
+
+              <div className="prompt-suggestions">
+                <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px", fontWeight: 600 }}>Try a demo prompt:</p>
+                <div className="chip-container">
+                  {examplePrompts.map((p, i) => (
+                    <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>
+                      "{p}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
-          <div className="input-group" style={{ marginTop: "20px" }}>
+          {/* INPUT BOX */}
+          <div className="input-group" style={{ marginTop: "30px" }}>
             <input
               type="text" className="input-field" value={prompt}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
-              placeholder="e.g., Split full_name into first_name and last_name"
+              placeholder="Ask the AI to modify the database..."
               disabled={loading || !!sql}
               onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && startWorkflow()}
             />
@@ -190,8 +199,8 @@ function App() {
           {/* APPROVAL SCREEN */}
           {sql && (
             <div className={`card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
-              <h2 style={{ fontSize: "18px", display: "flex", alignItems: "center" }}>
-                Human Approval Required
+              <h2 style={{ fontSize: "18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>Human Approval Required</span>
                 <span className={`badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk} RISK</span>
               </h2>
               
@@ -199,7 +208,7 @@ function App() {
               <pre className="code-block"><code>{sql}</code></pre>
 
               {shadowResult && shadowResult.status === "PASSED" && (
-                <div style={{ marginTop: "24px", background: "rgba(35, 134, 54, 0.1)", padding: "16px", borderRadius: "6px", border: "1px solid var(--success)" }}>
+                <div style={{ marginTop: "20px", background: "rgba(35, 134, 54, 0.1)", padding: "16px", borderRadius: "6px", border: "1px solid var(--success)" }}>
                   <div className="panel-title" style={{ color: "var(--success)", marginBottom: "8px" }}>
                     Shadow DB Validation Passed
                   </div>
@@ -256,8 +265,8 @@ function App() {
             ) : (
               trace.map((step, idx) => (
                 <div key={idx} style={{ marginBottom: "8px", display: "flex", gap: "8px" }}>
-                  <span style={{ color: step.includes("Error") ? "var(--danger)" : "var(--success)" }}>
-                    {step.includes("Error") ? "✗" : "✓"}
+                  <span style={{ color: step.includes("Error") || step.includes("Blocked") ? "var(--danger)" : "var(--success)" }}>
+                    {step.includes("Error") || step.includes("Blocked") ? "✗" : "✓"}
                   </span> 
                   <span>{step}</span>
                 </div>
