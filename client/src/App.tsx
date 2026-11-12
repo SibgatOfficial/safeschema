@@ -12,7 +12,7 @@ function App() {
   const [prompt, setPrompt] = useState<string>("");
   const [sql, setSql] = useState<string>("");
   const [risk, setRisk] = useState<string>("");
-  const [result, setResult] = useState<string>("");
+  const [result, setResult] = useState<any>(null); // 👈 Changed to any object
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   
@@ -22,7 +22,6 @@ function App() {
   const [shadowResult, setShadowResult] = useState<any>(null);
   const [trace, setTrace] = useState<string[]>([]);
 
-  // Eval State
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResults, setEvalResults] = useState<any>(null);
   const [evalTrace, setEvalTrace] = useState<string[]>([]);
@@ -48,7 +47,7 @@ function App() {
     const activePrompt = overridePrompt || prompt;
     if (!activePrompt.trim()) return;
     
-    setLoading(true); setError(""); setResult(""); setSql(""); setShadowResult(null);
+    setLoading(true); setError(""); setResult(null); setSql(""); setShadowResult(null);
     setTrace(["Initializing LangGraph...", "Connecting to Database..."]);
     
     try {
@@ -86,32 +85,32 @@ function App() {
 
     try {
       const response = await fetch(`${API_URL}/eval`);
-      const reader = response.body?.getReader();
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          const lines = chunk.split("\n").filter(Boolean);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n").filter(Boolean);
 
-          for (const line of lines) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.type === "log") {
-                setEvalTrace(prev => [...prev, parsed.message]);
-              } else if (parsed.type === "result") {
-                setEvalResults({ score: parsed.score, results: parsed.results });
-              }
-            } catch (e) {
-              // Ignore partial JSON chunks
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed.type === "log") {
+              setEvalTrace(prev => [...prev, parsed.message]);
+            } else if (parsed.type === "result") {
+              setEvalResults({ score: parsed.score, results: parsed.results });
             }
-          }
+          } catch (e) {}
         }
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      setEvalTrace(prev => [...prev, "❌ Failed to connect to evaluation server."]);
+    }
     setEvalLoading(false);
   };
 
@@ -122,186 +121,223 @@ function App() {
   ];
 
   return (
-    <div className="dashboard-layout">
-      <aside className="sidebar">
-        <div className="sidebar-header">Database Explorer</div>
-        
-        <div className="sidebar-section">
-          <h3 className="section-title">Live Schema</h3>
-          <table><thead><tr><th>Table</th><th>Column</th></tr></thead>
-            <tbody>{schema.map((c, i) => (<tr key={i}><td className="text-accent">{c.table_name}</td><td>{c.column_name}</td></tr>))}</tbody>
-          </table>
+    <div className="app-layout">
+      <nav className="top-nav">
+        <div className="nav-brand">
+          <div className="nav-logo">S</div>
+          <span className="nav-title">SafeSchema AI</span>
         </div>
-
-        <div className="sidebar-section">
-          <h3 className="section-title">Users Preview</h3>
-          {tableData.length === 0 ? (
-            <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p>
-          ) : (
-            <table>
-              <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
-              <tbody>
-                {tableData.map((row, idx) => (
-                  <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <div className="nav-links">
+          <span className="nav-badge">v1.0.0</span>
+          <a href="https://github.com/SibgatOfficial/safeschema" target="_blank" rel="noreferrer" className="nav-link">GitHub Repo</a>
         </div>
-      </aside>
+      </nav>
 
-      <main className="main-workspace">
-        <header className="workspace-header">
-          <div className="logo">
-            <div className="logo-icon">S</div>
-            <div>
-              <h1>SafeSchema Agent</h1>
-              <p>Agentic DB migrations with Human-in-the-loop.</p>
-            </div>
-          </div>
+      <div className="dashboard-layout">
+        <aside className="sidebar">
+          <div className="sidebar-header">Database Explorer</div>
           
-          <div className="tabs">
-            <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>Migrations</button>
-            <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>Evaluation Suite</button>
+          <div className="sidebar-section">
+            <h3 className="section-title">Live Schema</h3>
+            <div className="table-wrapper">
+              <table><thead><tr><th>Table</th><th>Column</th></tr></thead>
+                <tbody>{schema.map((c, i) => (<tr key={i}><td className="text-accent">{c.table_name}</td><td>{c.column_name}</td></tr>))}</tbody>
+              </table>
+            </div>
           </div>
-        </header>
 
-        {activeTab === 'migrations' && (
-          <>
-            {!sql && !result && !loading && (
-              <div className="welcome-container">
-                <div className="hero-title">Prevent AI Database Disasters</div>
-                <div className="hero-subtitle">LangGraph pauses execution. SQL is tested in a Shadow DB before committing to production.</div>
-                <div className="chip-grid">
-                  {examplePrompts.map((p, i) => (
-                    <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>"{p}"</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="input-wrapper">
-              <input type="text" className="main-input" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Ask the AI to modify the database..." disabled={loading || !!sql} />
-              <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}>{loading ? "Running..." : "Run Agent"}</button>
+          <div className="sidebar-section">
+            <h3 className="section-title">Users Preview</h3>
+            <div className="table-wrapper">
+              {tableData.length === 0 ? (
+                <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p>
+              ) : (
+                <table>
+                  <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
+                  <tbody>
+                    {tableData.map((row, idx) => (
+                      <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
+          </div>
+        </aside>
 
-            {error && <div className="alert-error">{error}</div>}
-
-            {sql && (
-              <div className={`approval-card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
-                <div className="approval-header">
-                  <h2>Human Approval Required</h2>
-                  <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
-                </div>
-                
-                {/* AGENT EXPLANATION BOX */}
-                <div className="agent-message-box">
-                  <p><strong>Original Request:</strong> "{prompt}"</p>
-                  <p style={{ marginTop: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
-                    The AI agent has generated the SQL migration below. Please review it carefully. 
-                    {shadowResult && shadowResult.rowCount === 0 && " (Note: This is a SELECT or structure change, so it affects 0 rows.)"}
-                  </p>
-                </div>
-
-                <div className="editor-window">
-                  <div className="editor-header">
-                    <span className="dot dot-red"></span>
-                    <span className="dot dot-yellow"></span>
-                    <span className="dot dot-green"></span>
-                    <span className="editor-title">migration.sql (Editable)</span>
-                  </div>
-                  <Editor
-                    height="200px"
-                    defaultLanguage="sql"
-                    value={sql}
-                    theme="vs-dark"
-                    onChange={(value) => setSql(value || "")} 
-                    options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 }, scrollBeyondLastLine: false }}
-                  />
-                </div>
-
-                {shadowResult && (
-                  <div className="shadow-result-box">
-                    <div className="shadow-header">✓ Shadow DB Validation Passed</div>
-                    <p>Blast Radius: <strong>{shadowResult.rowCount} rows affected</strong></p>
-                  </div>
-                )}
-                <div className="approval-actions">
-                  <button className="btn-reject" onClick={() => resumeWorkflow(false)}>Reject</button>
-                  <button className={`btn-approve ${risk === "RISKY" ? "bg-danger" : ""}`} onClick={() => resumeWorkflow(true)}>Approve & Execute</button>
-                </div>
-              </div>
-            )}
-
-            {result && (
-              <div className={`result-card ${result.includes("Error") || result.includes("Blocked") ? "result-error" : "result-success"}`}>
-                <h2>{result.includes("Error") || result.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
-                <p>{result}</p>
-                <button className="btn-reset" onClick={() => { setResult(""); setPrompt(""); }}>New Migration</button>
-              </div>
-            )}
-          </>
-        )}
-
-        {activeTab === 'evaluation' && (
-          <div className="eval-container">
-            <div className="eval-header">
-              <div>
-                <h2>Agent Evaluation Harness</h2>
-                <p>Automated Golden Dataset testing for the Risk Engine and Shadow DB.</p>
-              </div>
-              <button className="btn-run" onClick={runEvaluation} disabled={evalLoading}>
-                {evalLoading ? "Running Tests..." : "Run Evaluation"}
-              </button>
+        <main className="main-workspace">
+          <header className="workspace-header">
+            <div className="hero-section">
+              <h1>Agentic DB Migrations</h1>
+              <p>Prevent AI database disasters with human-in-the-loop validation.</p>
             </div>
+            
+            <div className="tabs">
+              <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>Migrations</button>
+              <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>Evaluation Suite</button>
+            </div>
+          </header>
 
-            {evalTrace.length > 0 && (
-              <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
-                <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
-                <div style={{ padding: "20px" }}>
-                  {evalTrace.map((log, i) => (
-                    <div key={i} className="trace-step">
-                      <span className="trace-cursor">&gt;</span> {log}
+          {activeTab === 'migrations' && (
+            <>
+              {!sql && !result && !loading && (
+                <div className="welcome-container">
+                  <div className="chip-grid">
+                    {examplePrompts.map((p, i) => (
+                      <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>"{p}"</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="input-wrapper">
+                <input 
+                  type="text" className="main-input" value={prompt} 
+                  onChange={(e) => setPrompt(e.target.value)} 
+                  placeholder="Ask the AI to modify the database..." 
+                  disabled={loading || !!sql} 
+                  onKeyDown={(e) => e.key === 'Enter' && startWorkflow()}
+                />
+                <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}>
+                  {loading ? <span className="spinner"></span> : "Run Agent"}
+                </button>
+              </div>
+
+              {error && <div className="alert-error">{error}</div>}
+
+              {sql && (
+                <div className={`approval-card ${risk === "RISKY" ? "risk-high" : "risk-low"}`}>
+                  <div className="approval-header">
+                    <h2>Human Approval Required</h2>
+                    <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
+                  </div>
+                  
+                  <div className="agent-message-box">
+                    <p><strong>Original Request:</strong> "{prompt}"</p>
+                    <p style={{ marginTop: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
+                      The AI agent generated the SQL below. Review carefully.
+                    </p>
+                  </div>
+
+                  <div className="editor-window">
+                    <div className="editor-header">
+                      <span className="dot dot-red"></span>
+                      <span className="dot dot-yellow"></span>
+                      <span className="dot dot-green"></span>
+                      <span className="editor-title">migration.sql (Editable)</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    <Editor
+                      height="200px" defaultLanguage="sql" value={sql} theme="vs-dark"
+                      onChange={(value) => setSql(value || "")} 
+                      options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 }, scrollBeyondLastLine: false }}
+                    />
+                  </div>
 
-            {evalResults && (
-              <div className="eval-results">
-                <div className="eval-score-card">
-                  <h3>Final Test Score</h3>
-                  <div className="score-circle">{evalResults.score}%</div>
+                  {shadowResult && (
+                    <div className="shadow-result-box">
+                      <div className="shadow-header">✓ Shadow DB Validation Passed</div>
+                      <p>Blast Radius: <strong>{shadowResult.rowCount} rows affected</strong></p>
+                    </div>
+                  )}
+                  <div className="approval-actions">
+                    <button className="btn-reject" onClick={() => resumeWorkflow(false)} disabled={loading}>Reject</button>
+                    <button className={`btn-approve ${risk === "RISKY" ? "bg-danger" : ""}`} onClick={() => resumeWorkflow(true)} disabled={loading}>
+                      {loading ? <span className="spinner" style={{ borderTopColor: "white" }}></span> : "Approve & Execute"}
+                    </button>
+                  </div>
                 </div>
-                <div className="eval-table">
-                  <table>
-                    <thead><tr><th>Test Case</th><th>Status</th><th>Risk Flagged</th><th>Shadow DB</th><th>Time</th></tr></thead>
-                    <tbody>
-                      {evalResults.results.map((r: any, i: number) => (
-                        <tr key={i}>
-                          <td>{r.name}</td>
-                          <td className={r.status === "PASS" ? "text-success" : "text-danger"}>{r.status}</td>
-                          <td>{r.riskDetected ? "Yes" : "No"}</td>
-                          <td>{r.shadowDbPassed ? "Passed" : "Blocked"}</td>
-                          <td className="text-muted">{r.durationMs}ms</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              )}
+
+              {/* 👈 UPDATED RESULT CARD TO SHOW DATA */}
+              {result && (
+                <div className={`result-card ${result.message?.includes("Error") || result.message?.includes("Blocked") ? "result-error" : "result-success"}`}>
+                  <h2>{result.message?.includes("Error") || result.message?.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
+                  <p>{result.message}</p>
+                  
+                  {/* 👈 DISPLAY THE QUERY RESULTS */}
+                  {result.rows && result.rows.length > 0 && (
+                    <div className="table-wrapper" style={{ marginTop: "20px", background: "var(--bg-panel)" }}>
+                      <table>
+                        <thead>
+                          <tr>{result.fields.map((f: string) => <th key={f}>{f}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {result.rows.map((row: any, idx: number) => (
+                            <tr key={idx}>
+                              {result.fields.map((f: string) => <td key={f}>{row[f]?.toString() || "NULL"}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <button className="btn-reset" onClick={() => { setResult(null); setPrompt(""); }}>Start New Migration</button>
                 </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'evaluation' && (
+            <div className="eval-container">
+              <div className="eval-header">
+                <div>
+                  <h2>Agent Evaluation Harness</h2>
+                  <p>Automated Golden Dataset testing for safety guardrails.</p>
+                </div>
+                <button className="btn-run" onClick={runEvaluation} disabled={evalLoading}>
+                  {evalLoading ? <span className="spinner"></span> : "Run Evaluation"}
+                </button>
               </div>
-            )}
+
+              {evalTrace.length > 0 && (
+                <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
+                  <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
+                  <div style={{ padding: "20px" }}>
+                    {evalTrace.map((log, i) => (
+                      <div key={i} className="trace-step">
+                        <span className="trace-cursor">&gt;</span> {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {evalResults && (
+                <div className="eval-results">
+                  <div className="eval-score-card">
+                    <h3>Final Test Score</h3>
+                    <div className="score-circle">{evalResults.score}%</div>
+                  </div>
+                  <div className="eval-table">
+                    <table>
+                      <thead><tr><th>Test Case</th><th>Status</th><th>Risk Flagged</th><th>Shadow DB</th><th>Time</th></tr></thead>
+                      <tbody>
+                        {evalResults.results.map((r: any, i: number) => (
+                          <tr key={i}>
+                            <td>{r.name}</td>
+                            <td className={r.status === "PASS" ? "text-success" : "text-danger"}>{r.status}</td>
+                            <td>{r.riskDetected ? "Yes" : "No"}</td>
+                            <td>{r.shadowDbPassed ? "Passed" : "Blocked"}</td>
+                            <td className="text-muted">{r.durationMs}ms</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+
+        <aside className="trace-panel">
+          <div className="trace-header">Agent Execution Trace</div>
+          <div className="terminal-window">
+            {trace.map((t, i) => (<div key={i} className="trace-step"><span className="trace-cursor">&gt;</span> {t}</div>))}
           </div>
-        )}
-      </main>
-
-      <aside className="trace-panel">
-        <div className="trace-header">Agent Execution Trace</div>
-        <div className="terminal-window">
-          {trace.map((t, i) => (<div key={i} className="trace-step"><span className="trace-cursor">&gt;</span> {t}</div>))}
-        </div>
-      </aside>
+        </aside>
+      </div>
     </div>
   );
 }
