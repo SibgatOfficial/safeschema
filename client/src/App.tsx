@@ -22,8 +22,10 @@ function App() {
   const [shadowResult, setShadowResult] = useState<any>(null);
   const [trace, setTrace] = useState<string[]>([]);
 
+  // Eval State
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResults, setEvalResults] = useState<any>(null);
+  const [evalTrace, setEvalTrace] = useState<string[]>([]); // 👈 Live logs
 
   const fetchSchema = async () => {
     try {
@@ -77,11 +79,39 @@ function App() {
     setLoading(false);
   };
 
+  // 👈 NEW: Real-time streaming evaluation
   const runEvaluation = async () => {
     setEvalLoading(true);
+    setEvalResults(null);
+    setEvalTrace(["Starting Agentic Evaluation Suite..."]);
+
     try {
-      const res = await axios.get(`${API_URL}/eval`);
-      setEvalResults(res.data);
+      const response = await fetch(`${API_URL}/eval`);
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n").filter(Boolean);
+
+          for (const line of lines) {
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.type === "log") {
+                setEvalTrace(prev => [...prev, parsed.message]);
+              } else if (parsed.type === "result") {
+                setEvalResults({ score: parsed.score, results: parsed.results });
+              }
+            } catch (e) {
+              // Ignore partial JSON chunks
+            }
+          }
+        }
+      }
     } catch (err) { console.error(err); }
     setEvalLoading(false);
   };
@@ -104,21 +134,16 @@ function App() {
           </table>
         </div>
 
-        {/* 👈 ADDED USERS PREVIEW BACK TO FIX VERCEL BUILD */}
         <div className="sidebar-section">
           <h3 className="section-title">Users Preview</h3>
           {tableData.length === 0 ? (
             <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p>
           ) : (
             <table>
-              <thead>
-                <tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr>
-              </thead>
+              <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
               <tbody>
                 {tableData.map((row, idx) => (
-                  <tr key={idx}>
-                    {tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}
-                  </tr>
+                  <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
                 ))}
               </tbody>
             </table>
@@ -183,12 +208,7 @@ function App() {
                     value={sql}
                     theme="vs-dark"
                     onChange={(value) => setSql(value || "")} 
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 14,
-                      padding: { top: 16 },
-                      scrollBeyondLastLine: false,
-                    }}
+                    options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 }, scrollBeyondLastLine: false }}
                   />
                 </div>
 
@@ -227,10 +247,24 @@ function App() {
               </button>
             </div>
 
+            {/* LIVE TERMINAL TRACE FOR EVALUATION */}
+            {evalTrace.length > 0 && (
+              <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
+                <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
+                <div style={{ padding: "20px" }}>
+                  {evalTrace.map((log, i) => (
+                    <div key={i} className="trace-step">
+                      <span className="trace-cursor">&gt;</span> {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {evalResults && (
               <div className="eval-results">
                 <div className="eval-score-card">
-                  <h3>Test Score</h3>
+                  <h3>Final Test Score</h3>
                   <div className="score-circle">{evalResults.score}%</div>
                 </div>
                 <div className="eval-table">
