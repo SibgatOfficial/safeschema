@@ -25,7 +25,7 @@ function App() {
   // Eval State
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResults, setEvalResults] = useState<any>(null);
-  const [evalTrace, setEvalTrace] = useState<string[]>([]); // 👈 Live logs
+  const [evalTrace, setEvalTrace] = useState<string[]>([]);
 
   const fetchSchema = async () => {
     try {
@@ -79,7 +79,6 @@ function App() {
     setLoading(false);
   };
 
-  // Real-time streaming evaluation
   const runEvaluation = async () => {
     setEvalLoading(true);
     setEvalResults(null);
@@ -195,6 +194,15 @@ function App() {
                   <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
                 </div>
                 
+                {/* AGENT EXPLANATION BOX */}
+                <div className="agent-message-box">
+                  <p><strong>Original Request:</strong> "{prompt}"</p>
+                  <p style={{ marginTop: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
+                    The AI agent has generated the SQL migration below. Please review it carefully. 
+                    {shadowResult && shadowResult.rowCount === 0 && " (Note: This is a SELECT or structure change, so it affects 0 rows.)"}
+                  </p>
+                </div>
+
                 <div className="editor-window">
                   <div className="editor-header">
                     <span className="dot dot-red"></span>
@@ -247,7 +255,6 @@ function App() {
               </button>
             </div>
 
-            {/* LIVE TERMINAL TRACE FOR EVALUATION */}
             {evalTrace.length > 0 && (
               <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
                 <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
