@@ -4,7 +4,7 @@ import axios from "axios";
 import Editor from "@monaco-editor/react";
 import "./App.css";
 
-const API_URL = "https://safeschema.onrender.com"; // Use localhost for local testing
+const API_URL = "https://safeschema.onrender.com"; 
 
 function App() {
   const [activeTab, setActiveTab] = useState<"migrations" | "evaluation">("migrations");
@@ -12,7 +12,7 @@ function App() {
   const [prompt, setPrompt] = useState<string>("");
   const [sql, setSql] = useState<string>("");
   const [risk, setRisk] = useState<string>("");
-  const [result, setResult] = useState<any>(null); // 👈 Changed to any object
+  const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   
@@ -79,46 +79,30 @@ function App() {
   };
 
   const runEvaluation = async () => {
-    setEvalLoading(true);
-    setEvalResults(null);
+    setEvalLoading(true); setEvalResults(null);
     setEvalTrace(["Starting Agentic Evaluation Suite..."]);
 
     try {
       const response = await fetch(`${API_URL}/eval`);
       if (!response.body) throw new Error("No response body");
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter(Boolean);
-
+        const lines = decoder.decode(value).split("\n").filter(Boolean);
         for (const line of lines) {
           try {
             const parsed = JSON.parse(line);
-            if (parsed.type === "log") {
-              setEvalTrace(prev => [...prev, parsed.message]);
-            } else if (parsed.type === "result") {
-              setEvalResults({ score: parsed.score, results: parsed.results });
-            }
+            if (parsed.type === "log") setEvalTrace(prev => [...prev, parsed.message]);
+            else if (parsed.type === "result") setEvalResults({ score: parsed.score, results: parsed.results });
           } catch (e) {}
         }
       }
-    } catch (err) {
-      setEvalTrace(prev => [...prev, "❌ Failed to connect to evaluation server."]);
-    }
+    } catch (err) { setEvalTrace(prev => [...prev, "❌ Failed to connect."]); }
     setEvalLoading(false);
   };
-
-  const examplePrompts = [
-    "Split the full_name into first_name and last_name",
-    "Delete all users from the database",
-    "Add a column called phone_number to users"
-  ];
 
   return (
     <div className="app-layout">
@@ -136,7 +120,6 @@ function App() {
       <div className="dashboard-layout">
         <aside className="sidebar">
           <div className="sidebar-header">Database Explorer</div>
-          
           <div className="sidebar-section">
             <h3 className="section-title">Live Schema</h3>
             <div className="table-wrapper">
@@ -145,20 +128,13 @@ function App() {
               </table>
             </div>
           </div>
-
           <div className="sidebar-section">
             <h3 className="section-title">Users Preview</h3>
             <div className="table-wrapper">
-              {tableData.length === 0 ? (
-                <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p>
-              ) : (
+              {tableData.length === 0 ? <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>No data</p> : (
                 <table>
                   <thead><tr>{tableColumns.map(col => <th key={col}>{col}</th>)}</tr></thead>
-                  <tbody>
-                    {tableData.map((row, idx) => (
-                      <tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>
-                    ))}
-                  </tbody>
+                  <tbody>{tableData.map((row, idx) => (<tr key={idx}>{tableColumns.map(col => <td key={col}>{row[col]?.toString() || "NULL"}</td>)}</tr>))}</tbody>
                 </table>
               )}
             </div>
@@ -171,7 +147,6 @@ function App() {
               <h1>Agentic DB Migrations</h1>
               <p>Prevent AI database disasters with human-in-the-loop validation.</p>
             </div>
-            
             <div className="tabs">
               <button className={`tab ${activeTab === 'migrations' ? 'active' : ''}`} onClick={() => setActiveTab('migrations')}>Migrations</button>
               <button className={`tab ${activeTab === 'evaluation' ? 'active' : ''}`} onClick={() => setActiveTab('evaluation')}>Evaluation Suite</button>
@@ -180,24 +155,8 @@ function App() {
 
           {activeTab === 'migrations' && (
             <>
-              {!sql && !result && !loading && (
-                <div className="welcome-container">
-                  <div className="chip-grid">
-                    {examplePrompts.map((p, i) => (
-                      <button key={i} className="prompt-chip" onClick={() => { setPrompt(p); startWorkflow(p); }}>"{p}"</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="input-wrapper">
-                <input 
-                  type="text" className="main-input" value={prompt} 
-                  onChange={(e) => setPrompt(e.target.value)} 
-                  placeholder="Ask the AI to modify the database..." 
-                  disabled={loading || !!sql} 
-                  onKeyDown={(e) => e.key === 'Enter' && startWorkflow()}
-                />
+                <input type="text" className="main-input" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Ask the AI to modify the database..." disabled={loading || !!sql} onKeyDown={(e) => e.key === 'Enter' && startWorkflow()} />
                 <button className="btn-run" onClick={() => startWorkflow()} disabled={loading || !!sql}>
                   {loading ? <span className="spinner"></span> : "Run Agent"}
                 </button>
@@ -211,28 +170,16 @@ function App() {
                     <h2>Human Approval Required</h2>
                     <span className={`risk-badge ${risk === "RISKY" ? "badge-high" : "badge-low"}`}>{risk}</span>
                   </div>
-                  
                   <div className="agent-message-box">
                     <p><strong>Original Request:</strong> "{prompt}"</p>
-                    <p style={{ marginTop: "8px", color: "var(--text-muted)", fontSize: "13px" }}>
-                      The AI agent generated the SQL below. Review carefully.
-                    </p>
                   </div>
-
                   <div className="editor-window">
                     <div className="editor-header">
-                      <span className="dot dot-red"></span>
-                      <span className="dot dot-yellow"></span>
-                      <span className="dot dot-green"></span>
+                      <span className="dot dot-red"></span><span className="dot dot-yellow"></span><span className="dot dot-green"></span>
                       <span className="editor-title">migration.sql (Editable)</span>
                     </div>
-                    <Editor
-                      height="200px" defaultLanguage="sql" value={sql} theme="vs-dark"
-                      onChange={(value) => setSql(value || "")} 
-                      options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 }, scrollBeyondLastLine: false }}
-                    />
+                    <Editor height="200px" defaultLanguage="sql" value={sql} theme="vs-dark" onChange={(value) => setSql(value || "")} options={{ minimap: { enabled: false }, fontSize: 14, padding: { top: 16 }, scrollBeyondLastLine: false }} />
                   </div>
-
                   {shadowResult && (
                     <div className="shadow-result-box">
                       <div className="shadow-header">✓ Shadow DB Validation Passed</div>
@@ -248,30 +195,20 @@ function App() {
                 </div>
               )}
 
-              {/* 👈 UPDATED RESULT CARD TO SHOW DATA */}
               {result && (
                 <div className={`result-card ${result.message?.includes("Error") || result.message?.includes("Blocked") ? "result-error" : "result-success"}`}>
                   <h2>{result.message?.includes("Error") || result.message?.includes("Blocked") ? "Execution Blocked" : "Execution Successful"}</h2>
                   <p>{result.message}</p>
                   
-                  {/* 👈 DISPLAY THE QUERY RESULTS */}
+                  {/* THIS RENDERS THE DATA TABLE AFTER APPROVAL */}
                   {result.rows && result.rows.length > 0 && (
                     <div className="table-wrapper" style={{ marginTop: "20px", background: "var(--bg-panel)" }}>
                       <table>
-                        <thead>
-                          <tr>{result.fields.map((f: string) => <th key={f}>{f}</th>)}</tr>
-                        </thead>
-                        <tbody>
-                          {result.rows.map((row: any, idx: number) => (
-                            <tr key={idx}>
-                              {result.fields.map((f: string) => <td key={f}>{row[f]?.toString() || "NULL"}</td>)}
-                            </tr>
-                          ))}
-                        </tbody>
+                        <thead><tr>{result.fields.map((f: string) => <th key={f}>{f}</th>)}</tr></thead>
+                        <tbody>{result.rows.map((row: any, idx: number) => (<tr key={idx}>{result.fields.map((f: string) => <td key={f}>{row[f]?.toString() || "NULL"}</td>)}</tr>))}</tbody>
                       </table>
                     </div>
                   )}
-
                   <button className="btn-reset" onClick={() => { setResult(null); setPrompt(""); }}>Start New Migration</button>
                 </div>
               )}
@@ -294,11 +231,7 @@ function App() {
                 <div className="terminal-window" style={{ marginTop: "20px", border: "1px solid var(--border)", borderRadius: "8px", background: "#000", maxHeight: "250px" }}>
                   <div className="panel-title" style={{ padding: "10px 20px", borderBottom: "1px solid var(--border)" }}>Live Test Execution</div>
                   <div style={{ padding: "20px" }}>
-                    {evalTrace.map((log, i) => (
-                      <div key={i} className="trace-step">
-                        <span className="trace-cursor">&gt;</span> {log}
-                      </div>
-                    ))}
+                    {evalTrace.map((log, i) => (<div key={i} className="trace-step"><span className="trace-cursor">&gt;</span> {log}</div>))}
                   </div>
                 </div>
               )}
